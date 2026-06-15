@@ -204,8 +204,8 @@ const UI = {
     sameHint: "original · no translation",
     tip: "<b>Tip:</b> Captions open in a separate window — keep it beside Zoom. For best results use <b>Chrome</b> or <b>Edge</b>.",
     langs: [
-      { code: "fr", label: "Français", sub: "French captions" },
-      { code: "en", label: "English",  sub: "English captions" },
+      { code: "fr", translateCode: "fr-CA", label: "Français", sub: "French captions" },
+      { code: "en", translateCode: "en-US", label: "English",  sub: "English captions" },
     ],
   },
   fr: {
@@ -218,18 +218,17 @@ const UI = {
     sameHint: "original · sans traduction",
     tip: "<b>Conseil :</b> Les sous-titres s'ouvrent dans une fenêtre séparée — gardez-la à côté de Zoom. Utilisez de préférence <b>Chrome</b> ou <b>Edge</b>.",
     langs: [
-      { code: "fr", label: "Français", sub: "Sous-titres français" },
-      { code: "en", label: "English",  sub: "Sous-titres anglais" },
+      { code: "fr", translateCode: "fr-CA", label: "Français", sub: "Sous-titres français" },
+      { code: "en", translateCode: "en-US", label: "English",  sub: "Sous-titres anglais" },
     ],
   },
 };
 
-function buildOverlayUrl(room, targetCode, sourceCode) {
-  // 如果目标语言 == 源语言，不翻译，直接看原文字幕
-  if (targetCode === sourceCode) {
+function buildOverlayUrl(room, t, sourceCode) {
+  if (t.code === sourceCode) {
     return `https://caption.ninja/overlay?room=${room}&${OVERLAY_PARAMS}`;
   }
-  return `https://caption.ninja/overlay?room=${room}&translate=${targetCode}&${OVERLAY_PARAMS}`;
+  return `https://caption.ninja/overlay?room=${room}&translate=${t.translateCode}&${OVERLAY_PARAMS}`;
 }
 
 function getSource() {
@@ -259,7 +258,7 @@ function render() {
   const ui = UI[source];
 
   const buttons = ui.langs.map(t => {
-    const url = buildOverlayUrl(room, t.code, source);
+    const url = buildOverlayUrl(room, t, source);
     const hint = (t.code === source) ? ` · ${ui.sameHint}` : "";
     return `
       <a class="lang-btn" href="${url}" target="_blank" rel="noopener">
