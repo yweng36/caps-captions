@@ -19,11 +19,7 @@
   #scroll-area::-webkit-scrollbar-track { background: transparent; }
   #scroll-area::-webkit-scrollbar-thumb { background: #c8d0da; border-radius: 3px; }
 
-  /* Finalized pairs */
-  #pairs { display: flex; flex-direction: column; gap: 20px; }
-
-  .pair { display: flex; flex-direction: column; gap: 5px; }
-
+  /* ── Shared row layout ── */
   .row {
     display: flex; align-items: baseline; gap: 10px;
     line-height: 1.45; word-break: break-word;
@@ -36,20 +32,32 @@
   .tag.en { background: #1f6feb; }
   .tag.fr { background: #c0392b; }
 
-  .row.original .text    { font-size: 14px; color: #8a9ab0; font-style: italic; }
+  /* ── Finalized pairs ── */
+  #pairs { display: flex; flex-direction: column; gap: 20px; }
+  .pair  { display: flex; flex-direction: column; gap: 5px; }
+
+  .row.original    .text { font-size: 14px; color: #8a9ab0; font-style: italic; }
   .row.translation .text { font-size: 22px; color: #0e1b2a; font-weight: 500; }
 
-  /* Live streaming area — completely separate from pairs */
+  /* ── Live streaming area (two rows, separate from pairs) ── */
   #live {
     margin-top: 20px;
-    display: flex; align-items: baseline; gap: 10px;
-    min-height: 22px;
-    font-size: 14px; color: #8a9ab0; font-style: italic;
-    line-height: 1.45; word-break: break-word;
+    display: flex; flex-direction: column; gap: 5px;
   }
-  #live-tag { opacity: 0; transition: opacity .12s; }
-  #live-tag.visible { opacity: 1; }
-  #live-text { flex: 1; }
+  #live-orig { min-height: 22px; }
+  #live-orig  .text { font-size: 14px; color: #8a9ab0; font-style: italic; }
+
+  #live-xlate { min-height: 32px; }
+  #live-xlate .text {
+    font-size: 22px; font-weight: 500;
+    color: #0e1b2a; opacity: 0.45; font-style: italic;
+  }
+
+  /* Tags in live area use same .tag styles; visibility toggled via opacity */
+  #live-orig-tag  { opacity: 0; transition: opacity .12s; }
+  #live-xlate-tag { opacity: 0; transition: opacity .12s; }
+  #live-orig-tag.visible  { opacity: 1; }
+  #live-xlate-tag.visible { opacity: 1; }
 
   /* ▼ Live button */
   #live-btn {
@@ -71,9 +79,18 @@
 
 <div id="scroll-area">
   <div id="pairs"></div>
+
   <div id="live">
-    <span id="live-tag"></span>
-    <span id="live-text"></span>
+    <!-- streaming original -->
+    <div class="row original" id="live-orig">
+      <span id="live-orig-tag" class="tag"></span>
+      <span id="live-orig-text" class="text"></span>
+    </div>
+    <!-- debounced translation preview (dimmed, italic = in progress) -->
+    <div class="row translation" id="live-xlate">
+      <span id="live-xlate-tag" class="tag"></span>
+      <span id="live-xlate-text" class="text"></span>
+    </div>
   </div>
 </div>
 
@@ -81,7 +98,7 @@
 <div id="status">connecting…</div>
 
 <script>
-/* ── Config ──────────────────────────────────────────────────── */
+/* ── Config ───────────────────────────────────────────────── */
 const GOOGLE_KEY = "AIzaSyBcNjS1FeOoCg02fKnFk_aIARfUSd8JBh0";
 
 const p         = new URLSearchParams(location.search);
@@ -89,23 +106,25 @@ const ROOM      = p.get("room");
 const FROM_LANG = p.get("fromlang");
 const TO_LANG   = p.get("translate");
 
-const scrollArea = document.getElementById("scroll-area");
-const pairsEl    = document.getElementById("pairs");
-const liveEl     = document.getElementById("live");
-const liveTagEl  = document.getElementById("live-tag");
-const liveTextEl = document.getElementById("live-text");
-const statusEl   = document.getElementById("status");
-const liveBtnEl  = document.getElementById("live-btn");
+const scrollArea    = document.getElementById("scroll-area");
+const pairsEl       = document.getElementById("pairs");
+const statusEl      = document.getElementById("status");
+const liveBtnEl     = document.getElementById("live-btn");
 
-const ORIG_TAG   = (FROM_LANG || "??").toUpperCase();
-const XLATE_TAG  = (TO_LANG   || "??").toUpperCase();
-const ORIG_CLS   = FROM_LANG || "en";
-const XLATE_CLS  = TO_LANG   || "fr";
+const liveOrigTagEl  = document.getElementById("live-orig-tag");
+const liveOrigTextEl = document.getElementById("live-orig-text");
+const liveXlateTagEl = document.getElementById("live-xlate-tag");
+const liveXlateTextEl= document.getElementById("live-xlate-text");
 
-liveTagEl.textContent = ORIG_TAG;
-liveTagEl.classList.add("tag", ORIG_CLS);
+const ORIG_TAG  = (FROM_LANG || "??").toUpperCase();
+const XLATE_TAG = (TO_LANG   || "??").toUpperCase();
+const ORIG_CLS  = FROM_LANG || "en";
+const XLATE_CLS = TO_LANG   || "fr";
 
-/* ── Scroll ──────────────────────────────────────────────────── */
+liveOrigTagEl.textContent  = ORIG_TAG;  liveOrigTagEl.classList.add(ORIG_CLS);
+liveXlateTagEl.textContent = XLATE_TAG; liveXlateTagEl.classList.add(XLATE_CLS);
+
+/* ── Scroll ───────────────────────────────────────────────── */
 let isScrolledUp    = false;
 let isAutoScrolling = false;
 let returnTimer     = null;
@@ -122,57 +141,76 @@ function scrollToBottom() {
 }
 function showLiveBtn() { liveBtnEl.style.display = "flex"; }
 function hideLiveBtn()  { liveBtnEl.style.display = "none"; }
-
-function onNewContent() {
-  if (!isScrolledUp) scrollToBottom();
-}
+function onNewContent() { if (!isScrolledUp) scrollToBottom(); }
 
 scrollArea.addEventListener("scroll", () => {
   if (isAutoScrolling) {
     if (nearBottom()) {
-      isAutoScrolling = false;
-      clearTimeout(autoScrollGuard);
-      isScrolledUp = false;
-      clearTimeout(returnTimer); returnTimer = null;
+      isAutoScrolling = false; clearTimeout(autoScrollGuard);
+      isScrolledUp = false; clearTimeout(returnTimer); returnTimer = null;
       hideLiveBtn();
     }
     return;
   }
   if (nearBottom()) {
-    isScrolledUp = false;
-    clearTimeout(returnTimer); returnTimer = null;
-    hideLiveBtn();
+    isScrolledUp = false; clearTimeout(returnTimer); returnTimer = null; hideLiveBtn();
   } else {
     if (!isScrolledUp) { isScrolledUp = true; showLiveBtn(); }
     clearTimeout(returnTimer);
     returnTimer = setTimeout(() => {
-      returnTimer = null; isScrolledUp = false;
-      hideLiveBtn(); scrollToBottom();
+      returnTimer = null; isScrolledUp = false; hideLiveBtn(); scrollToBottom();
     }, 5000);
   }
 }, { passive: true });
 
 liveBtnEl.addEventListener("click", () => {
-  isScrolledUp = false;
-  clearTimeout(returnTimer); returnTimer = null;
+  isScrolledUp = false; clearTimeout(returnTimer); returnTimer = null;
   hideLiveBtn(); scrollToBottom();
 });
 
-/* ── Live area (streaming original only) ─────────────────────── */
-function setLiveText(text) {
-  liveTextEl.textContent = text;
-  liveTagEl.classList.toggle("visible", !!text);
+/* ── Live area ────────────────────────────────────────────── */
+let translateTimer = null;
+let liveGen = 0;   // incremented whenever live area is invalidated
+
+function setLiveOrig(text) {
+  liveOrigTextEl.textContent = text;
+  liveOrigTagEl.classList.toggle("visible", !!text);
   onNewContent();
-}
-function clearLiveText() {
-  liveTextEl.textContent = "";
-  liveTagEl.classList.remove("visible");
+
+  // Debounced translation preview: fires 450ms after speech pauses
+  clearTimeout(translateTimer);
+  const myGen = ++liveGen;
+
+  if (!text.trim()) { clearLiveXlate(); return; }
+
+  translateTimer = setTimeout(async () => {
+    if (processingQueue || liveGen !== myGen) return;
+    const xlate = await translate(text);
+    if (processingQueue || liveGen !== myGen) return; // guard stale result
+    setLiveXlate(xlate);
+  }, 450);
 }
 
-/* ── Finalized pairs ─────────────────────────────────────────── */
+function setLiveXlate(text) {
+  liveXlateTextEl.textContent = text;
+  liveXlateTagEl.classList.toggle("visible", !!text);
+  onNewContent();
+}
+
+function clearLive() {
+  liveGen++;                          // invalidate any in-flight debounce translate
+  clearTimeout(translateTimer);
+  liveOrigTextEl.textContent  = ""; liveOrigTagEl.classList.remove("visible");
+  liveXlateTextEl.textContent = ""; liveXlateTagEl.classList.remove("visible");
+}
+
+function clearLiveXlate() {
+  liveXlateTextEl.textContent = ""; liveXlateTagEl.classList.remove("visible");
+}
+
+/* ── Finalized pairs ──────────────────────────────────────── */
 function addPair(origText, xlateText) {
-  const div = document.createElement("div");
-  div.className = "pair";
+  const div  = document.createElement("div"); div.className = "pair";
 
   const oRow = document.createElement("div"); oRow.className = "row original";
   const oTag = document.createElement("span"); oTag.className = `tag ${ORIG_CLS}`; oTag.textContent = ORIG_TAG;
@@ -184,13 +222,12 @@ function addPair(origText, xlateText) {
   const xTxt = document.createElement("span"); xTxt.className = "text"; xTxt.textContent = xlateText;
   xRow.appendChild(xTag); xRow.appendChild(xTxt);
 
-  div.appendChild(oRow);
-  div.appendChild(xRow);
+  div.appendChild(oRow); div.appendChild(xRow);
   pairsEl.appendChild(div);
   onNewContent();
 }
 
-/* ── Google Translate ────────────────────────────────────────── */
+/* ── Google Translate ─────────────────────────────────────── */
 async function translate(text) {
   if (!text.trim()) return "";
   try {
@@ -203,7 +240,7 @@ async function translate(text) {
   } catch { return text; }
 }
 
-/* ── Final queue — processed one at a time, in order ────────── */
+/* ── Final queue ──────────────────────────────────────────── */
 const finalQueue    = [];
 let processingQueue = false;
 let lastFinalText   = "";
@@ -214,14 +251,14 @@ async function drainFinalQueue() {
   while (finalQueue.length > 0) {
     const text = finalQueue.shift();
     lastFinalText = text;
-    clearLiveText();                    // clear live area immediately
+    clearLive();                      // clear live immediately; also cancels debounce
     const xlate = await translate(text);
-    addPair(text, xlate);              // add completed pair
+    addPair(text, xlate);
   }
   processingQueue = false;
 }
 
-/* ── WebSocket ───────────────────────────────────────────────── */
+/* ── WebSocket ────────────────────────────────────────────── */
 let socket, retryDelay = 1000;
 
 function connect() {
@@ -238,7 +275,7 @@ function connect() {
     let data;
     try { data = JSON.parse(evt.data); } catch { return; }
 
-    if (data.c) { clearLiveText(); return; }
+    if (data.c) { clearLive(); return; }
 
     if (data.final) {
       finalQueue.push(data.final);
@@ -249,7 +286,7 @@ function connect() {
     if (data.interm) {
       if (processingQueue) return;
       if (data.interm === lastFinalText) return;
-      setLiveText(data.interm);
+      setLiveOrig(data.interm);
     }
   };
 
