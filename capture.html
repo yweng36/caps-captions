@@ -65,6 +65,13 @@
   #status.active { color: #94a3b8; }
 
   .hint { font-size: 11px; color: #334155; text-align: center; line-height: 1.7; }
+
+  #mic-status {
+    font-size: 12px; color: #475569; text-align: center;
+    display: flex; align-items: center; gap: 6px; justify-content: center;
+  }
+  #mic-status.ok { color: #4ade80; }
+  #mic-status.warn { color: #fb923c; }
 </style>
 </head>
 <body>
@@ -89,6 +96,8 @@
   </button>
 
   <div id="status">No capture active</div>
+
+  <div id="mic-status">🎙 —</div>
 
   <div class="hint">
     Keyboard: <b>E</b> = English · <b>F</b> = French · <b>Esc</b> = Stop
@@ -161,6 +170,23 @@ setInterval(() => {
 }, 1000);
 
 render();
+
+async function checkMic() {
+  const el = document.getElementById("mic-status");
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const track = stream.getAudioTracks()[0];
+    const label = track.label || "Unknown";
+    stream.getTracks().forEach(t => t.stop());
+    const isAggregate = label.toLowerCase().includes("aggregate") || label.toLowerCase().includes("caps");
+    el.textContent = "🎙 " + label;
+    el.className = isAggregate ? "ok" : "warn";
+  } catch (e) {
+    el.textContent = "🎙 No mic permission";
+    el.className = "warn";
+  }
+}
+checkMic();
 </script>
 </body>
 </html>
