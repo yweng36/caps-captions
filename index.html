@@ -3,162 +3,217 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Live Captions · CAPS AGM</title>
+<title>Welcome · CAPS AGM 2026</title>
 <style>
   :root {
-    --ink:      #0e1b2a;
-    --ink-soft: #5a6b7d;
-    --paper:    #f6f7f9;
-    --card:     #ffffff;
-    --line:     #e2e6eb;
-    --signal:   #1f6feb;
-    --en:       #1f6feb;
-    --fr:       #c0392b;
-    --radius:   14px;
-    --shadow:   0 1px 2px rgba(14,27,42,.06), 0 8px 24px rgba(14,27,42,.06);
+    --maple-dark:  #7a2e1a;   /* deep maple red from logo */
+    --maple-mid:   #b84a2e;   /* rust / mid tone */
+    --maple-light: #d4836a;   /* terracotta / light */
+    --cream:       #fdf6f0;   /* warm background */
+    --card:        #ffffff;
+    --ink:         #1c0e08;
+    --ink-soft:    #7a5a50;
+    --line:        #ecddd6;
+    --radius:      18px;
   }
 
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
   html, body {
-    margin: 0;
-    background: var(--paper);
+    min-height: 100%;
+    background: var(--cream);
     color: var(--ink);
     font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 
+  /* ── Maple-leaf watermark background ── */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(184,74,46,.08) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 100% 100%, rgba(122,46,26,.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
   .wrap {
+    position: relative; z-index: 1;
     min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 20px 48px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px 20px 56px;
+    gap: 28px;
   }
 
-  .card {
-    width: 100%;
-    max-width: 460px;
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 32px 28px 28px;
+  /* ── Logo + title block ── */
+  .hero { text-align: center; }
+
+  .logo {
+    width: 96px; height: 96px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 8px rgba(122,46,26,.18));
+    margin-bottom: 16px;
   }
 
-  .eyebrow {
-    font-size: 12px;
-    letter-spacing: .14em;
-    text-transform: uppercase;
-    color: var(--ink-soft);
-    margin: 0 0 10px;
-    font-weight: 600;
+  .org-name {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: .18em; text-transform: uppercase;
+    color: var(--maple-mid); margin-bottom: 10px;
   }
 
   h1 {
-    font-size: 23px;
-    line-height: 1.25;
-    margin: 0 0 6px;
-    font-weight: 700;
-    letter-spacing: -.01em;
+    font-size: clamp(26px, 6vw, 36px);
+    font-weight: 800; line-height: 1.15;
+    letter-spacing: -.02em;
+    color: var(--maple-dark);
   }
 
-  .sub {
-    font-size: 14px;
-    color: var(--ink-soft);
-    margin: 0 0 26px;
-    line-height: 1.6;
+  .tagline {
+    margin-top: 10px;
+    font-size: 14px; color: var(--ink-soft); line-height: 1.6;
   }
 
-  .langs { display: grid; gap: 12px; }
-
-  .lang-btn {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 18px 18px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
+  /* ── Card ── */
+  .card {
+    width: 100%; max-width: 420px;
     background: var(--card);
-    color: var(--ink);
-    font-size: 17px;
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: none;
-    transition: border-color .15s, transform .06s, box-shadow .15s;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 4px rgba(122,46,26,.06), 0 12px 40px rgba(122,46,26,.10);
+    overflow: hidden;
   }
-  .lang-btn:hover      { border-color: var(--signal); box-shadow: 0 0 0 3px rgba(31,111,235,.10); }
-  .lang-btn:active     { transform: translateY(1px); }
-  .lang-btn:focus-visible { outline: 3px solid rgba(31,111,235,.45); outline-offset: 2px; }
 
-  .btn-left  { display: flex; flex-direction: column; gap: 3px; }
-  .btn-sub   { font-size: 13px; color: var(--ink-soft); font-weight: 400; }
-  .arrow     { color: var(--signal); font-size: 18px; }
-
+  .card-header {
+    background: var(--maple-dark);
+    padding: 18px 24px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .card-header-logo {
+    width: 36px; height: 36px; object-fit: contain;
+    filter: brightness(0) invert(1) opacity(.9);
+  }
+  .card-header-text {
+    font-size: 13px; font-weight: 600;
+    color: rgba(255,255,255,.85); letter-spacing: .04em;
+  }
+  .badge-row { display: flex; gap: 6px; margin-top: 3px; }
   .badge {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .06em;
-    padding: 2px 6px;
-    border-radius: 4px;
-    color: #fff;
-    margin-right: 8px;
-    vertical-align: middle;
+    font-size: 9px; font-weight: 800; letter-spacing: .1em;
+    padding: 2px 7px; border-radius: 3px; color: #fff;
   }
-  .badge.en { background: var(--en); }
-  .badge.fr { background: var(--fr); }
+  .badge.en { background: rgba(255,255,255,.22); }
+  .badge.fr { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.2); }
 
-  .note {
-    margin-top: 22px;
-    padding-top: 18px;
-    border-top: 1px solid var(--line);
-    font-size: 12.5px;
-    color: var(--ink-soft);
-    line-height: 1.55;
+  .card-body { padding: 24px 24px 20px; }
+
+  .card-desc {
+    font-size: 14px; color: var(--ink-soft);
+    line-height: 1.65; margin-bottom: 20px;
   }
-  .note b { color: var(--ink); font-weight: 600; }
 
+  /* ── Open button ── */
+  .open-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 16px 20px;
+    background: var(--maple-dark);
+    border: none; border-radius: 12px;
+    color: #fff; font-size: 16px; font-weight: 700;
+    cursor: pointer; text-decoration: none;
+    transition: background .15s, transform .08s, box-shadow .15s;
+    box-shadow: 0 4px 16px rgba(122,46,26,.30);
+  }
+  .open-btn:hover  { background: var(--maple-mid); box-shadow: 0 6px 24px rgba(122,46,26,.38); }
+  .open-btn:active { transform: translateY(1px); }
+  .open-btn:focus-visible { outline: 3px solid rgba(184,74,46,.5); outline-offset: 3px; }
+
+  .btn-label { display: flex; flex-direction: column; gap: 2px; text-align: left; }
+  .btn-label .main  { font-size: 16px; font-weight: 700; }
+  .btn-label .sub   { font-size: 11.5px; font-weight: 400; opacity: .78; }
+  .btn-arrow { font-size: 20px; opacity: .85; }
+
+  /* ── Divider ── */
+  .divider {
+    border: none; border-top: 1px solid var(--line);
+    margin: 18px 0;
+  }
+
+  /* ── Tip ── */
+  .tip {
+    font-size: 12px; color: var(--ink-soft); line-height: 1.6;
+  }
+  .tip strong { color: var(--ink); font-weight: 600; }
+
+  /* ── Footer ── */
   .footer {
-    margin-top: 26px;
-    font-size: 12px;
-    color: var(--ink-soft);
-    text-align: center;
+    font-size: 11.5px; color: var(--maple-light);
+    text-align: center; letter-spacing: .04em;
   }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="card">
-    <p class="eyebrow">Live captions · Sous-titres en direct</p>
-    <h1>CAPS AGM 2026</h1>
-    <p class="sub">
-      Open the caption window to follow along in both languages.<br>
-      Ouvrez la fenêtre de sous-titres pour suivre dans les deux langues.
-    </p>
 
-    <div class="langs">
-      <a class="lang-btn" href="overlay.html" target="_blank" rel="noopener">
-        <span class="btn-left">
-          <span>
-            <span class="badge en">EN</span><span class="badge fr">FR</span>
-            Live Captions · Sous-titres en direct
-          </span>
-          <span class="btn-sub">Bilingual · Bilingues — auto EN ↔ FR</span>
-        </span>
-        <span class="arrow">→</span>
-      </a>
+  <!-- Hero -->
+  <div class="hero">
+    <img
+      class="logo"
+      src="https://capsacpp.ca/wp-content/uploads/2024/07/CAPSACPP-LOGO-image-only-e1720705655709.png"
+      alt="CAPS / ACPP logo"
+      onerror="this.style.display='none'"
+    >
+    <p class="org-name">CAPS · ACPP</p>
+    <h1>Welcome CAPS AGM 2026!</h1>
+    <p class="tagline">
+      Live bilingual captions · Sous-titres bilingues en direct
+    </p>
+  </div>
+
+  <!-- Card -->
+  <div class="card">
+    <div class="card-header">
+      <img
+        class="card-header-logo"
+        src="https://capsacpp.ca/wp-content/uploads/2024/07/CAPSACPP-LOGO-image-only-e1720705655709.png"
+        alt=""
+        onerror="this.style.display='none'"
+      >
+      <div class="card-header-text">
+        Real-time captions · Sous-titres en temps réel
+        <div class="badge-row">
+          <span class="badge en">EN</span>
+          <span class="badge fr">FR</span>
+          <span style="font-size:10px;color:rgba(255,255,255,.55);align-self:center;">auto EN ↔ FR</span>
+        </div>
+      </div>
     </div>
 
-    <div class="note">
-      <b>Tip · Conseil :</b> Keep the caption window beside Zoom. Use <b>Chrome</b> or <b>Edge</b>.<br>
-      Gardez la fenêtre de sous-titres à côté de Zoom.
+    <div class="card-body">
+      <p class="card-desc">
+        Click below to open the caption window — bilingual subtitles switch automatically as speakers change language.<br><br>
+        Cliquez ci-dessous pour ouvrir la fenêtre de sous-titres — les langues changent automatiquement.
+      </p>
+
+      <a class="open-btn" href="overlay.html" target="_blank" rel="noopener">
+        <span class="btn-label">
+          <span class="main">Open Live Captions</span>
+          <span class="sub">Ouvrir les sous-titres en direct</span>
+        </span>
+        <span class="btn-arrow">→</span>
+      </a>
+
+      <hr class="divider">
+
+      <p class="tip">
+        <strong>Tip · Conseil :</strong>
+        Keep the caption window beside your Zoom window for the best experience.
+        Use <strong>Chrome</strong> or <strong>Edge</strong>.<br>
+        Placez la fenêtre de sous-titres à côté de Zoom.
+      </p>
     </div>
   </div>
-  <div class="footer">CAPS · ACPP — AGM live captions</div>
-</div>
 
+  <p class="footer">Canadian Association of Postdoctoral Scholars · Association Canadienne des Stagiaires Postdoctoraux</p>
+</div>
 </body>
 </html>
