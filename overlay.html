@@ -301,16 +301,19 @@ function connectRoom(key) {
 
 Object.keys(ROOMS).forEach(connectRoom);
 
-// Force-translate live text every 1.5s during continuous speech
+// Force-translate live text every 1.5s during continuous speech.
+// Uses its own gen counter — independent of liveGen (which interim events
+// increment constantly), so fast speech no longer blocks the result.
+let intervalGen = 0;
 setInterval(() => {
   const text = loText.textContent;
   if (!text || !liveRoomKey) return;
   if (Date.now() - lastTranslateAt < 1500) return;
   const cfg = ROOMS[liveRoomKey];
-  const myGen = liveGen;
+  const myGen = ++intervalGen;
   lastTranslateAt = Date.now();
   translateText(text, cfg.fromlang, cfg.tolang).then(xlate => {
-    if (liveGen !== myGen) return;
+    if (intervalGen !== myGen) return;
     lxText.textContent = xlate;
     lxTag.classList.toggle("on", !!xlate);
     onNewContent();
