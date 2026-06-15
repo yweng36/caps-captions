@@ -50,12 +50,6 @@
 
   #status { position: fixed; top: 10px; right: 14px; font-size: 11px; color: #bbb; }
 
-  #inactive-warn {
-    display: none; position: fixed; top: 0; left: 0; right: 0;
-    background: #b91c1c; color: #fff; text-align: center;
-    font-size: 14px; font-weight: 600; padding: 10px;
-    z-index: 99;
-  }
 </style>
 </head>
 <body>
@@ -76,7 +70,6 @@
 
 <button id="live-btn">▼ Live</button>
 <div id="status">connecting…</div>
-<div id="inactive-warn">⚠️ 采集已停止 — 请在采集页重新点击语言按钮 / Capture stopped — click language button again</div>
 
 <script>
 const GOOGLE_KEY = "AIzaSyBcNjS1FeOoCg02fKnFk_aIARfUSd8JBh0";
@@ -90,12 +83,10 @@ const ROOMS = {
 };
 
 /* ── DOM refs ─────────────────────────────────────────── */
-const scrollArea    = document.getElementById("scroll-area");
-const pairsEl       = document.getElementById("pairs");
-const statusEl      = document.getElementById("status");
-const liveBtnEl     = document.getElementById("live-btn");
-const inactiveWarn  = document.getElementById("inactive-warn");
-let lastMessageAt   = Date.now();
+const scrollArea  = document.getElementById("scroll-area");
+const pairsEl     = document.getElementById("pairs");
+const statusEl    = document.getElementById("status");
+const liveBtnEl   = document.getElementById("live-btn");
 const loTag      = document.getElementById("lo-tag");
 const loText     = document.getElementById("lo-text");
 const lxTag      = document.getElementById("lx-tag");
@@ -277,8 +268,6 @@ function connectRoom(key) {
     };
 
     ws.onmessage = (evt) => {
-      lastMessageAt = Date.now();
-      inactiveWarn.style.display = "none";
       let data;
       try { data = JSON.parse(evt.data); } catch { return; }
 
@@ -316,12 +305,6 @@ function connectRoom(key) {
 
 Object.keys(ROOMS).forEach(connectRoom);
 
-// Show warning if no WebSocket messages for 20s (capture likely stopped)
-setInterval(() => {
-  if (Date.now() - lastMessageAt > 10000) {
-    inactiveWarn.style.display = "block";
-  }
-}, 5000);
 
 // Every 500ms: if live text hasn't been translated in 1.5s, translate it.
 // If the live segment has been running for 3s+, also commit it as a

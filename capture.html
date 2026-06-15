@@ -63,6 +63,7 @@
     font-size: 13px; color: #475569; min-height: 20px; text-align: center;
   }
   #status.active { color: #94a3b8; }
+  #status.warn { color: #fb923c; }
 
   .hint { font-size: 11px; color: #334155; text-align: center; line-height: 1.7; }
 </style>
@@ -114,10 +115,18 @@ const WATCHDOG_MS  = 10000;
 function resetWatchdog() {
   clearTimeout(watchdogTimer);
   watchdogTimer = setTimeout(() => {
-    if (activeLang) {
-      const lang = activeLang;
-      switchTo(lang);
+    if (!activeLang) return;
+    // Navigate existing popup instead of window.open (avoids popup blocker)
+    if (captureWin && !captureWin.closed) {
+      captureWin.location.href = CAPTURE_URLS[activeLang];
+      const status = document.getElementById("status");
+      status.textContent = "⟳ Auto-restarted capture — " + new Date().toLocaleTimeString();
+      status.className = "warn";
+      setTimeout(() => render(), 3000);
+    } else {
+      switchTo(activeLang);
     }
+    startWatchdog(activeLang);
   }, WATCHDOG_MS);
 }
 
