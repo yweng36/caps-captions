@@ -209,7 +209,18 @@ function clearLiveXlate() {
 }
 
 /* ── Finalized pairs ──────────────────────────────────────── */
+function lastPairOrigText() {
+  const pairs = pairsEl.querySelectorAll(".pair");
+  if (!pairs.length) return "";
+  return pairs[pairs.length - 1].querySelector(".row.original .text")?.textContent ?? "";
+}
+
 function addPair(origText, xlateText) {
+  // DOM-level dedup: if the last visible pair has identical original text, remove it
+  if (lastPairOrigText() === origText) {
+    pairsEl.lastElementChild.remove();
+  }
+
   const div  = document.createElement("div"); div.className = "pair";
 
   const oRow = document.createElement("div"); oRow.className = "row original";
@@ -250,10 +261,11 @@ async function drainFinalQueue() {
   processingQueue = true;
   while (finalQueue.length > 0) {
     const text = finalQueue.shift();
+    if (text === lastFinalText) continue; // queue-level dedup: skip exact duplicate finals
     lastFinalText = text;
-    clearLive();                      // clear live immediately; also cancels debounce
+    clearLive();                          // clear live immediately; also cancels debounce
     const xlate = await translate(text);
-    addPair(text, xlate);
+    addPair(text, xlate);                 // addPair does a second DOM-level dedup check
   }
   processingQueue = false;
 }
