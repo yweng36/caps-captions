@@ -121,66 +121,80 @@ const originalCls    = FROM_LANG || "en";
 const translationCls = TO_LANG   || "fr";
 
 /* ── Scroll state ────────────────────────────────────────────── */
-let isScrolledUp  = false;
-let returnTimer   = null;
-let hasNewContent = false;
+let isScrolledUp    = false;
+let isAutoScrolling = false;
+let returnTimer     = null;
+let autoScrollGuard = null;
 
 function nearBottom() {
   return scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight < 80;
 }
+
 function scrollToBottom() {
+  isAutoScrolling = true;
   scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: "smooth" });
+  // Safety net: reset flag if scroll event never fires (e.g., already at bottom)
+  clearTimeout(autoScrollGuard);
+  autoScrollGuard = setTimeout(() => { isAutoScrolling = false; }, 1200);
 }
+
 function showLiveBtn() { liveBtn.style.display = "flex"; }
 function hideLiveBtn()  { liveBtn.style.display = "none"; }
 
+// Called whenever new caption content is added
 function onNewContent() {
-  hasNewContent = true;
-  if (!isScrolledUp) {
-    scrollToBottom();
-  } else {
-    clearTimeout(returnTimer);
-    returnTimer = setTimeout(() => {
-      isScrolledUp = false;
-      hasNewContent = false;
-      hideLiveBtn();
-      scrollToBottom();
-    }, 5000);
-  }
+  if (!isScrolledUp) scrollToBottom();
+  // Timer is driven only by user scroll events — no timer logic here
 }
 
 scrollArea.addEventListener("scroll", () => {
+  if (isAutoScrolling) {
+    // Programmatic scroll in progress — only check if we've arrived
+    if (nearBottom()) {
+      isAutoScrolling = false;
+      clearTimeout(autoScrollGuard);
+      isScrolledUp = false;
+      clearTimeout(returnTimer);
+      returnTimer = null;
+      hideLiveBtn();
+    }
+    return;
+  }
+
+  // Manual scroll
   if (nearBottom()) {
     isScrolledUp = false;
     clearTimeout(returnTimer);
+    returnTimer = null;
     hideLiveBtn();
   } else {
     if (!isScrolledUp) { isScrolledUp = true; showLiveBtn(); }
-    if (hasNewContent) {
-      clearTimeout(returnTimer);
-      returnTimer = setTimeout(() => {
-        isScrolledUp = false;
-        hasNewContent = false;
-        hideLiveBtn();
-        scrollToBottom();
-      }, 5000);
-    }
+    // Reset 5-second timer on every manual scroll event;
+    // fires only after user stops scrolling for 5s
+    clearTimeout(returnTimer);
+    returnTimer = setTimeout(() => {
+      returnTimer = null;
+      isScrolledUp = false;
+      hideLiveBtn();
+      scrollToBottom();
+    }, 5000);
   }
 }, { passive: true });
 
 liveBtn.addEventListener("click", () => {
   isScrolledUp = false;
-  hasNewContent = false;
   clearTimeout(returnTimer);
+  returnTimer = null;
   hideLiveBtn();
   scrollToBottom();
 });
 
 /* ── Caption pair state ──────────────────────────────────────── */
-let currentPair   = null;   // { el, origSpan, xlateSpan }
-let lastFinalText = "";
-let translateTimer = null;
+let currentPair          = null;
+let lastFinalText        = "";
+let translateTimer       = null;
 let ignoringInterimUntil = 0;
+let pendingFinal         = false;  // blocks interim while final translate is in flight
 
 function makeRow(tagLabel, tagCls, rowCls, text) {
   const row  = document.createElement("div");
@@ -268,19 +282,23 @@ function connect() {
 
     if (data.final) {
       clearTimeout(translateTimer);
+      pendingFinal = true;                         // block interm until finalized
       ignoringInterimUntil = Date.now() + 600;
       lastFinalText = data.final;
       const xlate = await translate(data.final);
       finalizeCurrentPair(data.final, xlate);
+      pendingFinal = false;                        // unblock interm after finalize
       return;
     }
 
     if (data.interm) {
+      if (pendingFinal) return;                    // wait for final to complete
       if (Date.now() < ignoringInterimUntil) return;
-      if (data.interm === lastFinalText) return;   // skip carryover
+      if (data.interm === lastFinalText) return;
       updateCurrentOriginal(data.interm);
       clearTimeout(translateTimer);
       translateTimer = setTimeout(async () => {
+        if (pendingFinal) return;                  // final arrived while waiting
         const xlate = await translate(data.interm);
         updateCurrentTranslation(xlate);
       }, 350);
