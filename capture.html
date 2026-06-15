@@ -63,7 +63,10 @@
     font-size: 13px; color: #475569; min-height: 20px; text-align: center;
   }
   #status.active { color: #94a3b8; }
-  #status.warn { color: #fb923c; }
+
+  #restart-notice {
+    font-size: 12px; color: #fb923c; min-height: 18px; text-align: center;
+  }
 
   .hint { font-size: 11px; color: #334155; text-align: center; line-height: 1.7; }
 </style>
@@ -90,6 +93,7 @@
   </button>
 
   <div id="status">No capture active</div>
+  <div id="restart-notice"></div>
 
   <div class="hint">
     Keyboard: <b>E</b> = English · <b>F</b> = French · <b>Esc</b> = Stop
@@ -119,13 +123,13 @@ function resetWatchdog() {
     // Navigate existing popup instead of window.open (avoids popup blocker)
     if (captureWin && !captureWin.closed) {
       captureWin.location.href = CAPTURE_URLS[activeLang];
-      const status = document.getElementById("status");
-      status.textContent = "⟳ Auto-restarted capture — " + new Date().toLocaleTimeString();
-      status.className = "warn";
-      setTimeout(() => render(), 3000);
     } else {
       switchTo(activeLang);
     }
+    const notice = document.getElementById("restart-notice");
+    notice.textContent = "⟳ Auto-restarted — " + new Date().toLocaleTimeString();
+    clearTimeout(notice._clear);
+    notice._clear = setTimeout(() => { notice.textContent = ""; }, 5000);
     startWatchdog(activeLang);
   }, WATCHDOG_MS);
 }
