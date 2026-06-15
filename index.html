@@ -6,9 +6,9 @@
 <title>Welcome · CAPS AGM 2026</title>
 <style>
   :root {
-    --crimson:      #8B1A2B;   /* primary brand red — CAPS/ACPP text in slide */
-    --crimson-dark: #6B1020;   /* top/bottom accent bar */
-    --crimson-mid:  #A52030;   /* date/accent text */
+    --crimson:      #8C2022;   /* vivid brand crimson matching AGM slide text */
+    --crimson-dark: #6B1018;   /* top/bottom accent bar */
+    --crimson-mid:  #A52530;   /* date/accent text */
     --maple-rust:   #C04535;   /* logo mid tone */
     --maple-light:  #D4836A;   /* logo light terracotta */
     --white:        #ffffff;
@@ -74,7 +74,7 @@
 
   /* ── Divider line (like the AGM slide) ── */
   .title-divider {
-    width: 120px; height: 3px;
+    width: min(320px, 72%); height: 3px;
     background: var(--crimson);
     border-radius: 2px;
     margin: 0 auto;
@@ -156,10 +156,11 @@
   .btn-badges { display: flex; gap: 5px; }
   .badge {
     font-size: 9px; font-weight: 800; letter-spacing: .1em;
-    padding: 3px 7px; border-radius: 3px; color: #fff;
+    padding: 3px 8px; border-radius: 3px;
   }
-  .badge.en { background: rgba(255,255,255,.28); }
-  .badge.fr { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25); }
+  /* White pill badges — clear contrast against the crimson button */
+  .badge.en { background: #fff; color: var(--crimson); }
+  .badge.fr { background: rgba(255,255,255,.82); color: var(--crimson); }
 
   .btn-label { display: flex; flex-direction: column; gap: 2px; }
   .btn-label .main { font-size: 15px; font-weight: 700; }
@@ -200,7 +201,7 @@
 
     <img
       class="logo-img"
-      src="https://capsacpp.ca/wp-content/uploads/2024/07/CAPSACPP-LOGO-image-only-e1720705655709.png"
+      src="caps-logo.png"
       alt="CAPS / ACPP maple leaf logo"
       onerror="this.style.display='none'"
     >
