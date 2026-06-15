@@ -151,11 +151,10 @@ async function translateText(text, from, to) {
 function norm(t) { return t.trim().toLowerCase().replace(/[.!?,;:…]+$/, "").trim(); }
 
 /* ── Live area ────────────────────────────────────────── */
-let liveRoomKey      = null;   // which room owns the live area right now
-let liveGen          = 0;
-let translateTimer   = null;
-let lastTranslateAt  = 0;
-const MAX_WAIT_MS    = 2000;  // force live translation if speaking for >2s without pause
+let liveRoomKey    = null;   // which room owns the live area right now
+let liveGen        = 0;
+let translateTimer = null;
+let lastTranslateAt = 0;
 
 function setLiveRoom(key) {
   const cfg = ROOMS[key];
@@ -173,7 +172,6 @@ function setLiveOrig(text, cfg) {
   const myGen = ++liveGen;
   if (!text.trim()) { clearLiveXlate(); return; }
 
-  const delay = (Date.now() - lastTranslateAt) >= MAX_WAIT_MS ? 0 : 450;
   translateTimer = setTimeout(async () => {
     if (liveGen !== myGen) return;
     lastTranslateAt = Date.now();
@@ -182,7 +180,7 @@ function setLiveOrig(text, cfg) {
     lxText.textContent = xlate;
     lxTag.classList.toggle("on", !!xlate);
     onNewContent();
-  }, delay);
+  }, 450);
 }
 
 function clearLive() {
@@ -302,6 +300,22 @@ function connectRoom(key) {
 }
 
 Object.keys(ROOMS).forEach(connectRoom);
+
+// Force-translate live text every 1.5s during continuous speech
+setInterval(() => {
+  const text = loText.textContent;
+  if (!text || !liveRoomKey) return;
+  if (Date.now() - lastTranslateAt < 1500) return;
+  const cfg = ROOMS[liveRoomKey];
+  const myGen = liveGen;
+  lastTranslateAt = Date.now();
+  translateText(text, cfg.fromlang, cfg.tolang).then(xlate => {
+    if (liveGen !== myGen) return;
+    lxText.textContent = xlate;
+    lxTag.classList.toggle("on", !!xlate);
+    onNewContent();
+  });
+}, 500);
 </script>
 </body>
 </html>
