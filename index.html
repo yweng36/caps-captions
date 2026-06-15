@@ -192,43 +192,27 @@ const ROOMS = {
    - autofinal=800 : 静音 800ms 自动定稿，断句更利落 */
 const OVERLAY_PARAMS = "maxlines=3&autofinal=800";
 
-/* UI strings per source language */
-const UI = {
-  en: {
-    eyebrow: "Live captions",
-    heading: "Pick your caption language",
-    sub: "Opens in a new window — keep it beside Zoom.",
-    sourceLabel: "English speaker",
-    cls: "en",
-    q: "Show captions in:",
-    sameHint: "original · no translation",
-    tip: "<b>Tip:</b> Captions open in a separate window — keep it beside Zoom. For best results use <b>Chrome</b> or <b>Edge</b>.",
-    langs: [
-      { code: "fr", translateCode: "fr-CA", label: "Français", sub: "French captions" },
-      { code: "en", translateCode: "en-US", label: "English",  sub: "English captions" },
-    ],
-  },
-  fr: {
-    eyebrow: "Sous-titres en direct",
-    heading: "Choisissez votre langue",
-    sub: "S'ouvre dans une nouvelle fenêtre — gardez-la à côté de Zoom.",
-    sourceLabel: "Français parlé",
-    cls: "fr",
-    q: "Afficher les sous-titres en :",
-    sameHint: "original · sans traduction",
-    tip: "<b>Conseil :</b> Les sous-titres s'ouvrent dans une fenêtre séparée — gardez-la à côté de Zoom. Utilisez de préférence <b>Chrome</b> ou <b>Edge</b>.",
-    langs: [
-      { code: "fr", translateCode: "fr-CA", label: "Français", sub: "Sous-titres français" },
-      { code: "en", translateCode: "en-US", label: "English",  sub: "Sous-titres anglais" },
-    ],
-  },
+/* bilingual — each button uses its own language only */
+const SOURCE_CLS = { en: "en", fr: "fr" };
+const SOURCE_LABEL = {
+  en: "English speaker",
+  fr: "Français parlé",
 };
+const LANGS = [
+  { code: "fr", translateCode: "fr-CA", label: "Français", sub: "Sous-titres français" },
+  { code: "en", translateCode: "en-US", label: "English",  sub: "English captions" },
+];
 
 function buildOverlayUrl(room, t, sourceCode) {
   if (t.code === sourceCode) {
     return `https://caption.ninja/overlay?room=${room}&${OVERLAY_PARAMS}`;
   }
   return `https://caption.ninja/overlay?room=${room}&translate=${t.translateCode}&${OVERLAY_PARAMS}`;
+}
+
+function sameHint(code, sourceCode) {
+  if (code !== sourceCode) return "";
+  return code === "fr" ? " · original · sans traduction" : " · original · no translation";
 }
 
 function getSource() {
@@ -255,11 +239,10 @@ function render() {
   }
 
   const room = ROOMS[source];
-  const ui = UI[source];
 
-  const buttons = ui.langs.map(t => {
+  const buttons = LANGS.map(t => {
     const url = buildOverlayUrl(room, t, source);
-    const hint = (t.code === source) ? ` · ${ui.sameHint}` : "";
+    const hint = sameHint(t.code, source);
     return `
       <a class="lang-btn" href="${url}" target="_blank" rel="noopener">
         <span class="lang-left">
@@ -271,18 +254,22 @@ function render() {
   }).join("");
 
   card.innerHTML = `
-    <p class="eyebrow">${ui.eyebrow}</p>
-    <h1>${ui.heading}</h1>
-    <p class="sub">${ui.sub}</p>
+    <p class="eyebrow">Live captions · Sous-titres en direct</p>
+    <h1>Pick your language · Choisissez votre langue</h1>
+    <p class="sub">Opens in a new window · S'ouvre dans une nouvelle fenêtre.</p>
 
-    <div class="source-tag ${ui.cls}">
-      <span class="dot"></span>${ui.sourceLabel}
+    <div class="source-tag ${SOURCE_CLS[source]}">
+      <span class="dot"></span>${SOURCE_LABEL[source]}
     </div>
 
-    <p class="q">${ui.q}</p>
+    <p class="q">Show captions in · Afficher les sous-titres en :</p>
     <div class="langs">${buttons}</div>
 
-    <div class="note">${ui.tip}</div>`;
+    <div class="note">
+      <b>Tip · Conseil :</b> Captions open in a separate window — keep it beside Zoom.
+      Les sous-titres s'ouvrent dans une fenêtre séparée — gardez-la à côté de Zoom.
+      Use <b>Chrome</b> or <b>Edge</b>.
+    </div>`;
 }
 
 render();
