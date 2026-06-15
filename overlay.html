@@ -11,42 +11,64 @@
     font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
 
   #scroll-area {
-    height: 100vh; overflow-y: auto;
+    height: 100vh;
+    overflow-y: auto;
     padding: 20px 24px 100px;
   }
   #scroll-area::-webkit-scrollbar       { width: 6px; }
   #scroll-area::-webkit-scrollbar-track { background: transparent; }
   #scroll-area::-webkit-scrollbar-thumb { background: #c8d0da; border-radius: 3px; }
 
-  .row { display: flex; align-items: baseline; gap: 10px; line-height: 1.45; word-break: break-word; }
-  .tag { flex-shrink: 0; font-size: 10px; font-weight: 700; letter-spacing: .06em;
-         padding: 2px 6px; border-radius: 4px; color: #fff; }
+  /* ── Shared row layout ── */
+  .row {
+    display: flex; align-items: baseline; gap: 10px;
+    line-height: 1.45; word-break: break-word;
+  }
+  .tag {
+    flex-shrink: 0; font-size: 10px; font-weight: 700;
+    letter-spacing: .06em; padding: 2px 6px;
+    border-radius: 4px; color: #fff;
+  }
   .tag.en { background: #1f6feb; }
   .tag.fr { background: #c0392b; }
 
-  /* ── Finalized history ── */
+  /* ── Finalized pairs ── */
   #pairs { display: flex; flex-direction: column; gap: 20px; }
   .pair  { display: flex; flex-direction: column; gap: 5px; }
-  .row.orig  .text { font-size: 14px; color: #8a9ab0; font-style: italic; }
-  .row.xlate .text { font-size: 22px; color: #0e1b2a; font-weight: 500; }
 
-  /* ── Live in-progress block ── */
-  #live { margin-top: 20px; display: flex; flex-direction: column; gap: 5px; }
+  .row.original    .text { font-size: 14px; color: #8a9ab0; font-style: italic; }
+  .row.translation .text { font-size: 22px; color: #0e1b2a; font-weight: 500; }
 
-  #live-orig, #live-xlate { min-height: 22px; }
+  /* ── Live streaming area (two rows, separate from pairs) ── */
+  #live {
+    margin-top: 20px;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  #live-orig { min-height: 22px; }
   #live-orig  .text { font-size: 14px; color: #8a9ab0; font-style: italic; }
-  #live-xlate .text { font-size: 22px; color: #0e1b2a; font-weight: 500; opacity: .45; font-style: italic; }
 
-  .live-tag { opacity: 0; transition: opacity .12s; }
-  .live-tag.on { opacity: 1; }
+  #live-xlate { min-height: 32px; }
+  #live-xlate .text {
+    font-size: 22px; font-weight: 500;
+    color: #0e1b2a; opacity: 0.45; font-style: italic;
+  }
+
+  /* Tags in live area use same .tag styles; visibility toggled via opacity */
+  #live-orig-tag  { opacity: 0; transition: opacity .12s; }
+  #live-xlate-tag { opacity: 0; transition: opacity .12s; }
+  #live-orig-tag.visible  { opacity: 1; }
+  #live-xlate-tag.visible { opacity: 1; }
 
   /* ▼ Live button */
   #live-btn {
     display: none; position: fixed; bottom: 24px; left: 50%;
-    transform: translateX(-50%); align-items: center; gap: 6px;
-    background: #1f6feb; color: #fff; font-size: 14px; font-weight: 600;
-    padding: 10px 20px; border-radius: 999px; border: none; cursor: pointer;
-    box-shadow: 0 4px 16px rgba(31,111,235,.35); transition: opacity .2s; z-index: 10;
+    transform: translateX(-50%);
+    align-items: center; gap: 6px;
+    background: #1f6feb; color: #fff;
+    font-size: 14px; font-weight: 600;
+    padding: 10px 20px; border-radius: 999px; border: none;
+    cursor: pointer; box-shadow: 0 4px 16px rgba(31,111,235,.35);
+    transition: opacity .2s; z-index: 10;
   }
   #live-btn:hover { opacity: .88; }
 
@@ -57,14 +79,17 @@
 
 <div id="scroll-area">
   <div id="pairs"></div>
+
   <div id="live">
-    <div class="row orig" id="live-orig">
-      <span class="tag live-tag" id="lo-tag"></span>
-      <span class="text" id="lo-text"></span>
+    <!-- streaming original -->
+    <div class="row original" id="live-orig">
+      <span id="live-orig-tag" class="tag"></span>
+      <span id="live-orig-text" class="text"></span>
     </div>
-    <div class="row xlate" id="live-xlate">
-      <span class="tag live-tag" id="lx-tag"></span>
-      <span class="text" id="lx-text"></span>
+    <!-- debounced translation preview (dimmed, italic = in progress) -->
+    <div class="row translation" id="live-xlate">
+      <span id="live-xlate-tag" class="tag"></span>
+      <span id="live-xlate-text" class="text"></span>
     </div>
   </div>
 </div>
@@ -73,34 +98,37 @@
 <div id="status">connecting…</div>
 
 <script>
-/* ── Config ─────────────────────────────────────────── */
+/* ── Config ───────────────────────────────────────────────── */
 const GOOGLE_KEY = "AIzaSyBcNjS1FeOoCg02fKnFk_aIARfUSd8JBh0";
-const p          = new URLSearchParams(location.search);
-const ROOM       = p.get("room");
-const FROM_LANG  = p.get("fromlang");
-const TO_LANG    = p.get("translate");
+
+const p         = new URLSearchParams(location.search);
+const ROOM      = p.get("room");
+const FROM_LANG = p.get("fromlang");
+const TO_LANG   = p.get("translate");
+
+const scrollArea    = document.getElementById("scroll-area");
+const pairsEl       = document.getElementById("pairs");
+const statusEl      = document.getElementById("status");
+const liveBtnEl     = document.getElementById("live-btn");
+
+const liveOrigTagEl  = document.getElementById("live-orig-tag");
+const liveOrigTextEl = document.getElementById("live-orig-text");
+const liveXlateTagEl = document.getElementById("live-xlate-tag");
+const liveXlateTextEl= document.getElementById("live-xlate-text");
 
 const ORIG_TAG  = (FROM_LANG || "??").toUpperCase();
 const XLATE_TAG = (TO_LANG   || "??").toUpperCase();
 const ORIG_CLS  = FROM_LANG || "en";
 const XLATE_CLS = TO_LANG   || "fr";
 
-const scrollArea = document.getElementById("scroll-area");
-const pairsEl    = document.getElementById("pairs");
-const statusEl   = document.getElementById("status");
-const liveBtnEl  = document.getElementById("live-btn");
+liveOrigTagEl.textContent  = ORIG_TAG;  liveOrigTagEl.classList.add(ORIG_CLS);
+liveXlateTagEl.textContent = XLATE_TAG; liveXlateTagEl.classList.add(XLATE_CLS);
 
-const loTag  = document.getElementById("lo-tag");
-const loText = document.getElementById("lo-text");
-const lxTag  = document.getElementById("lx-tag");
-const lxText = document.getElementById("lx-text");
-
-loTag.textContent = ORIG_TAG;  loTag.classList.add(ORIG_CLS);
-lxTag.textContent = XLATE_TAG; lxTag.classList.add(XLATE_CLS);
-
-/* ── Scroll ─────────────────────────────────────────── */
-let isScrolledUp = false, isAutoScrolling = false;
-let returnTimer = null, autoScrollGuard = null;
+/* ── Scroll ───────────────────────────────────────────────── */
+let isScrolledUp    = false;
+let isAutoScrolling = false;
+let returnTimer     = null;
+let autoScrollGuard = null;
 
 function nearBottom() {
   return scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight < 80;
@@ -111,6 +139,8 @@ function scrollToBottom() {
   clearTimeout(autoScrollGuard);
   autoScrollGuard = setTimeout(() => { isAutoScrolling = false; }, 1200);
 }
+function showLiveBtn() { liveBtnEl.style.display = "flex"; }
+function hideLiveBtn()  { liveBtnEl.style.display = "none"; }
 function onNewContent() { if (!isScrolledUp) scrollToBottom(); }
 
 scrollArea.addEventListener("scroll", () => {
@@ -118,135 +148,117 @@ scrollArea.addEventListener("scroll", () => {
     if (nearBottom()) {
       isAutoScrolling = false; clearTimeout(autoScrollGuard);
       isScrolledUp = false; clearTimeout(returnTimer); returnTimer = null;
-      liveBtnEl.style.display = "none";
+      hideLiveBtn();
     }
     return;
   }
   if (nearBottom()) {
-    isScrolledUp = false; clearTimeout(returnTimer); returnTimer = null;
-    liveBtnEl.style.display = "none";
+    isScrolledUp = false; clearTimeout(returnTimer); returnTimer = null; hideLiveBtn();
   } else {
-    if (!isScrolledUp) { isScrolledUp = true; liveBtnEl.style.display = "flex"; }
+    if (!isScrolledUp) { isScrolledUp = true; showLiveBtn(); }
     clearTimeout(returnTimer);
     returnTimer = setTimeout(() => {
-      returnTimer = null; isScrolledUp = false;
-      liveBtnEl.style.display = "none"; scrollToBottom();
+      returnTimer = null; isScrolledUp = false; hideLiveBtn(); scrollToBottom();
     }, 5000);
   }
 }, { passive: true });
 
 liveBtnEl.addEventListener("click", () => {
   isScrolledUp = false; clearTimeout(returnTimer); returnTimer = null;
-  liveBtnEl.style.display = "none"; scrollToBottom();
+  hideLiveBtn(); scrollToBottom();
 });
 
-/* ── Google Translate ───────────────────────────────── */
+/* ── Live area ────────────────────────────────────────────── */
+let translateTimer = null;
+let liveGen = 0;   // incremented whenever live area is invalidated
+
+function setLiveOrig(text) {
+  liveOrigTextEl.textContent = text;
+  liveOrigTagEl.classList.toggle("visible", !!text);
+  onNewContent();
+
+  // Debounced translation preview: fires 450ms after speech pauses
+  clearTimeout(translateTimer);
+  const myGen = ++liveGen;
+
+  if (!text.trim()) { clearLiveXlate(); return; }
+
+  translateTimer = setTimeout(async () => {
+    if (processingQueue || liveGen !== myGen) return;
+    const xlate = await translate(text);
+    if (processingQueue || liveGen !== myGen) return; // guard stale result
+    setLiveXlate(xlate);
+  }, 450);
+}
+
+function setLiveXlate(text) {
+  liveXlateTextEl.textContent = text;
+  liveXlateTagEl.classList.toggle("visible", !!text);
+  onNewContent();
+}
+
+function clearLive() {
+  liveGen++;                          // invalidate any in-flight debounce translate
+  clearTimeout(translateTimer);
+  liveOrigTextEl.textContent  = ""; liveOrigTagEl.classList.remove("visible");
+  liveXlateTextEl.textContent = ""; liveXlateTagEl.classList.remove("visible");
+}
+
+function clearLiveXlate() {
+  liveXlateTextEl.textContent = ""; liveXlateTagEl.classList.remove("visible");
+}
+
+/* ── Finalized pairs ──────────────────────────────────────── */
+function addPair(origText, xlateText) {
+  const div  = document.createElement("div"); div.className = "pair";
+
+  const oRow = document.createElement("div"); oRow.className = "row original";
+  const oTag = document.createElement("span"); oTag.className = `tag ${ORIG_CLS}`; oTag.textContent = ORIG_TAG;
+  const oTxt = document.createElement("span"); oTxt.className = "text"; oTxt.textContent = origText;
+  oRow.appendChild(oTag); oRow.appendChild(oTxt);
+
+  const xRow = document.createElement("div"); xRow.className = "row translation";
+  const xTag = document.createElement("span"); xTag.className = `tag ${XLATE_CLS}`; xTag.textContent = XLATE_TAG;
+  const xTxt = document.createElement("span"); xTxt.className = "text"; xTxt.textContent = xlateText;
+  xRow.appendChild(xTag); xRow.appendChild(xTxt);
+
+  div.appendChild(oRow); div.appendChild(xRow);
+  pairsEl.appendChild(div);
+  onNewContent();
+}
+
+/* ── Google Translate ─────────────────────────────────────── */
 async function translate(text) {
   if (!text.trim()) return "";
   try {
-    const res  = await fetch(
-      `https://translation.googleapis.com/language/translate/v2`
+    const url = `https://translation.googleapis.com/language/translate/v2`
       + `?key=${GOOGLE_KEY}&q=${encodeURIComponent(text)}`
-      + `&source=${FROM_LANG}&target=${TO_LANG}&format=text`
-    );
+      + `&source=${FROM_LANG}&target=${TO_LANG}&format=text`;
+    const res  = await fetch(url);
     const data = await res.json();
     return data?.data?.translations?.[0]?.translatedText || text;
   } catch { return text; }
 }
 
-/* ── Live translation pipeline ──────────────────────────────────────────────
-   Model: self-driving pipeline, NOT debounce.
-
-   translateLive(text) is called on every interm update.
-   - If no translate is in flight → start one immediately.
-   - If one is in flight       → store text as "pending" (latest wins).
-   When a translate completes  → show result, then immediately process pending.
-
-   liveGen invalidates everything when the live area is cleared (on final).
-   ──────────────────────────────────────────────────────────────────────── */
-let liveGen        = 0;   // bumped on clearLive; used to discard stale results
-let liveTranslating = false;
-let livePending    = null; // latest interm text waiting while translate is in flight
-
-function showLiveOrig(text) {
-  loText.textContent = text;
-  loTag.classList.toggle("on", !!text);
-  onNewContent();
-}
-function showLiveXlate(text) {
-  lxText.textContent = text;
-  lxTag.classList.toggle("on", !!text);
-  onNewContent();
-}
-function clearLive() {
-  liveGen++;
-  liveTranslating = false;
-  livePending     = null;
-  loText.textContent = ""; loTag.classList.remove("on");
-  lxText.textContent = ""; lxTag.classList.remove("on");
-}
-
-function translateLive(text, gen) {
-  if (gen !== liveGen) return;
-
-  if (liveTranslating) {
-    livePending = text;      // pipeline busy — queue the latest text
-    return;
-  }
-
-  liveTranslating = true;
-  livePending     = null;
-
-  translate(text).then(xlate => {
-    if (gen !== liveGen) { liveTranslating = false; return; } // stale
-    showLiveXlate(xlate);
-    liveTranslating = false;
-
-    // Immediately process whatever arrived while we were translating
-    if (livePending !== null) {
-      const next = livePending;
-      livePending = null;
-      translateLive(next, liveGen);
-    }
-  });
-}
-
-/* ── Finalized pairs ────────────────────────────────── */
-function addPair(origText, xlateText) {
-  const div  = document.createElement("div"); div.className = "pair";
-  const oRow = document.createElement("div"); oRow.className = "row orig";
-  const oTag = document.createElement("span"); oTag.className = `tag ${ORIG_CLS}`;  oTag.textContent = ORIG_TAG;
-  const oTxt = document.createElement("span"); oTxt.className = "text"; oTxt.textContent = origText;
-  oRow.append(oTag, oTxt);
-  const xRow = document.createElement("div"); xRow.className = "row xlate";
-  const xTag = document.createElement("span"); xTag.className = `tag ${XLATE_CLS}`; xTag.textContent = XLATE_TAG;
-  const xTxt = document.createElement("span"); xTxt.className = "text"; xTxt.textContent = xlateText;
-  xRow.append(xTag, xTxt);
-  div.append(oRow, xRow);
-  pairsEl.appendChild(div);
-  onNewContent();
-}
-
-/* ── Final queue (sequential, deduped) ─────────────── */
+/* ── Final queue ──────────────────────────────────────────── */
 const finalQueue    = [];
-let processingFinal = false;
+let processingQueue = false;
 let lastFinalText   = "";
 
 async function drainFinalQueue() {
-  if (processingFinal) return;
-  processingFinal = true;
+  if (processingQueue) return;
+  processingQueue = true;
   while (finalQueue.length > 0) {
     const text = finalQueue.shift();
-    if (text === lastFinalText) continue; // skip exact duplicate finals
     lastFinalText = text;
-    clearLive();
+    clearLive();                      // clear live immediately; also cancels debounce
     const xlate = await translate(text);
     addPair(text, xlate);
   }
-  processingFinal = false;
+  processingQueue = false;
 }
 
-/* ── WebSocket ──────────────────────────────────────── */
+/* ── WebSocket ────────────────────────────────────────────── */
 let socket, retryDelay = 1000;
 
 function connect() {
@@ -272,10 +284,9 @@ function connect() {
     }
 
     if (data.interm) {
-      if (processingFinal) return;               // final in progress, hold off
-      if (data.interm === lastFinalText) return; // interm repeating a done final
-      showLiveOrig(data.interm);
-      translateLive(data.interm, liveGen);       // pipeline: fire immediately
+      if (processingQueue) return;
+      if (data.interm === lastFinalText) return;
+      setLiveOrig(data.interm);
     }
   };
 
