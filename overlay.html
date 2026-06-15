@@ -136,7 +136,7 @@ function connect() {
       clearInterim();
       const text = NEED_XLATE ? await translateText(data.final) : data.final;
       addFinalLine(text);
-    } else if (data.interm && !NEED_XLATE) {
+    } else if (data.interm) {
       setInterim(data.interm);
     }
   };
