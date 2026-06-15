@@ -133,24 +133,20 @@
 <div class="wrap">
   <div class="card">
     <p class="eyebrow">Live captions · Sous-titres en direct</p>
-    <h1>Who is speaking? · Qui parle ?</h1>
+    <h1>CAPS AGM 2025</h1>
     <p class="sub">
-      Select the speaker's language — captions open in a new window showing both languages.<br>
-      Sélectionnez la langue de l'intervenant — les sous-titres s'ouvrent dans une nouvelle fenêtre.
+      Open the caption window to follow along in both languages.<br>
+      Ouvrez la fenêtre de sous-titres pour suivre dans les deux langues.
     </p>
 
     <div class="langs">
-      <a class="lang-btn" id="btn-en" href="#" target="_blank" rel="noopener">
+      <a class="lang-btn" href="overlay.html" target="_blank" rel="noopener">
         <span class="btn-left">
-          <span><span class="badge en">EN</span>English speaker</span>
-          <span class="btn-sub">FR · EN bilingual captions</span>
-        </span>
-        <span class="arrow">→</span>
-      </a>
-      <a class="lang-btn" id="btn-fr" href="#" target="_blank" rel="noopener">
-        <span class="btn-left">
-          <span><span class="badge fr">FR</span>Français parlé</span>
-          <span class="btn-sub">Sous-titres bilingues FR · EN</span>
+          <span>
+            <span class="badge en">EN</span><span class="badge fr">FR</span>
+            Live Captions · Sous-titres en direct
+          </span>
+          <span class="btn-sub">Bilingual · Bilingues — auto EN ↔ FR</span>
         </span>
         <span class="arrow">→</span>
       </a>
@@ -164,18 +160,5 @@
   <div class="footer">CAPS · ACPP — AGM live captions</div>
 </div>
 
-<script>
-const OVERLAY = "https://yweng36.github.io/caps-captions/overlay.html";
-
-const SOURCES = {
-  en: { room: "caps-agm-en-miyl2rw8q3", fromlang: "en", translate: "fr" },
-  fr: { room: "caps-agm-fr-3zuxvho7nu", fromlang: "fr", translate: "en" },
-};
-
-Object.entries(SOURCES).forEach(([lang, cfg]) => {
-  const p = new URLSearchParams({ room: cfg.room, fromlang: cfg.fromlang, translate: cfg.translate });
-  document.getElementById(`btn-${lang}`).href = `${OVERLAY}?${p}`;
-});
-</script>
 </body>
 </html>
