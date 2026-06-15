@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Captions · CAPS AGM</title>
+<style>
+  /* ----------------------------------------------------------------
+     配置区：部署时只改这里
+     room_en = 主讲「讲英语」时采集页用的房间号
+     room_fr = 主讲「讲法语」时采集页用的房间号
+     务必换成你自己的随机串，别用示例值。
+  ------------------------------------------------------------------*/
+
+  :root {
+    --ink:        #0e1b2a;   /* 深海军蓝，主文字 */
+    --ink-soft:   #5a6b7d;   /* 次级文字 */
+    --paper:      #f6f7f9;   /* 背景 */
+    --card:       #ffffff;
+    --line:       #e2e6eb;
+    --signal:     #1f6feb;   /* 主操作蓝 */
+    --signal-ink: #ffffff;
+    --en:         #1f6feb;
+    --fr:         #c0392b;   /* 法语用一抹砖红区分 */
+    --radius:     14px;
+    --shadow:     0 1px 2px rgba(14,27,42,.06), 0 8px 24px rgba(14,27,42,.06);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px 48px;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 460px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 32px 28px 28px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+
+  h1 {
+    font-size: 23px;
+    line-height: 1.25;
+    margin: 0 0 6px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+
+  .sub {
+    font-size: 15px;
+    color: var(--ink-soft);
+    margin: 0 0 26px;
+    line-height: 1.5;
+  }
+
+  .source-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 999px;
+    margin-bottom: 22px;
+  }
+  .source-tag .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .source-tag.en { background: #eaf1fe; color: var(--en); }
+  .source-tag.en .dot { background: var(--en); }
+  .source-tag.fr { background: #fbecea; color: var(--fr); }
+  .source-tag.fr .dot { background: var(--fr); }
+
+  .q {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin: 0 0 12px;
+  }
+
+  .langs {
+    display: grid;
+    gap: 12px;
+  }
+
+  .lang-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--card);
+    color: var(--ink);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color .15s, transform .06s, box-shadow .15s;
+  }
+  .lang-btn:hover {
+    border-color: var(--signal);
+    box-shadow: 0 0 0 3px rgba(31,111,235,.10);
+  }
+  .lang-btn:active { transform: translateY(1px); }
+  .lang-btn:focus-visible {
+    outline: 3px solid rgba(31,111,235,.45);
+    outline-offset: 2px;
+  }
+
+  .lang-native { font-size: 14px; color: var(--ink-soft); font-weight: 500; }
+  .lang-left { display: flex; flex-direction: column; gap: 2px; }
+  .arrow { color: var(--signal); font-size: 18px; }
+
+  .note {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.55;
+  }
+  .note b { color: var(--ink); font-weight: 600; }
+
+  .footer {
+    margin-top: 26px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    text-align: center;
+  }
+
+  .err {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    color: #9a3412;
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .err code {
+    background: #fff;
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid #fde6cc;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="card"><!-- JS 渲染 --></div>
+  <div class="footer">CAPS · ACPP — AGM live captions</div>
+</div>
+
+<script>
+/* ====================================================================
+   配置：部署时改这两个房间号为你自己的随机串
+   ==================================================================== */
+const ROOMS = {
+  en: "caps-agm-en-9f3k7q",   // 发言为英语 → 这个 room（请改成你自己的随机串）
+  fr: "caps-agm-fr-9f3k7q",   // 发言为法语 → 这个 room（请改成你自己的随机串）
+};
+
+/* CAPTION.Ninja overlay 参数（只显示译文，不要 dual）
+   - maxlines=3 : 最多保留 3 行
+   - autofinal=800 : 静音 800ms 自动定稿，断句更利落 */
+const OVERLAY_PARAMS = "maxlines=3&autofinal=800";
+
+/* 给参会者选的字幕语言。译文 = translate 代码。
+   注意：source 是哪种语言，就不必再翻成它自己（同语言时直接看原文 overlay）。*/
+const TARGET_LANGS = [
+  { code: "fr", label: "Français", native: "法语字幕" },
+  { code: "en", label: "English",  native: "英语字幕" },
+];
+
+/* 源语言展示文案 */
+const SOURCE_META = {
+  en: { tag: "English speaker", tagZh: "当前发言：英语", cls: "en" },
+  fr: { tag: "Français parlé",  tagZh: "当前发言：法语", cls: "fr" },
+};
+
+function buildOverlayUrl(room, targetCode, sourceCode) {
+  // 如果目标语言 == 源语言，不翻译，直接看原文字幕
+  if (targetCode === sourceCode) {
+    return `https://caption.ninja/overlay?room=${room}&${OVERLAY_PARAMS}`;
+  }
+  return `https://caption.ninja/overlay?room=${room}&translate=${targetCode}&${OVERLAY_PARAMS}`;
+}
+
+function getSource() {
+  const p = new URLSearchParams(location.search);
+  const s = (p.get("source") || "").toLowerCase();
+  return (s === "en" || s === "fr") ? s : null;
+}
+
+function render() {
+  const card = document.getElementById("card");
+  const source = getSource();
+
+  if (!source) {
+    card.innerHTML = `
+      <p class="eyebrow">Live captions</p>
+      <h1>Choose a caption link</h1>
+      <div class="err">
+        This page needs to know the speaker's language. Open one of:
+        <br><br>
+        <code>?source=en</code> — when the speaker is talking in English<br>
+        <code>?source=fr</code> — when the speaker is talking in French
+      </div>`;
+    return;
+  }
+
+  const room = ROOMS[source];
+  const meta = SOURCE_META[source];
+
+  const buttons = TARGET_LANGS.map(t => {
+    const url = buildOverlayUrl(room, t.code, source);
+    const sameLang = (t.code === source);
+    const hint = sameLang ? "原文 · no translation" : "";
+    return `
+      <a class="lang-btn" href="${url}" target="_blank" rel="noopener">
+        <span class="lang-left">
+          <span>${t.label}</span>
+          <span class="lang-native">${t.native}${hint ? " · " + hint : ""}</span>
+        </span>
+        <span class="arrow">→</span>
+      </a>`;
+  }).join("");
+
+  card.innerHTML = `
+    <p class="eyebrow">Live captions</p>
+    <h1>Pick your caption language</h1>
+    <p class="sub">选择你想看的字幕语言，将在新窗口打开。</p>
+
+    <div class="source-tag ${meta.cls}">
+      <span class="dot"></span>${meta.tag} · ${meta.tagZh}
+    </div>
+
+    <p class="q">Show captions in / 字幕语言：</p>
+    <div class="langs">${buttons}</div>
+
+    <div class="note">
+      <b>Tip:</b> Captions open in a separate window — keep it beside Zoom.
+      For best results use <b>Chrome</b> or <b>Edge</b>.<br>
+      提示：字幕在单独窗口打开，建议与 Zoom 并排放置。
+    </div>`;
+}
+
+render();
+window.addEventListener("popstate", render);
+</script>
+</body>
+</html>
