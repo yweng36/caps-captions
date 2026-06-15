@@ -190,11 +190,25 @@ liveBtn.addEventListener("click", () => {
 });
 
 /* ── Caption pair state ──────────────────────────────────────── */
-let currentPair          = null;
-let lastFinalText        = "";
-let translateTimer       = null;
-let ignoringInterimUntil = 0;
-let pendingFinal         = false;  // blocks interim while final translate is in flight
+let currentPair    = null;
+let lastFinalText  = "";
+let translateTimer = null;
+
+// Queue ensures finals are processed one-at-a-time, in order
+const finalQueue    = [];
+let processingQueue = false;
+
+async function drainFinalQueue() {
+  if (processingQueue) return;
+  processingQueue = true;
+  while (finalQueue.length > 0) {
+    const text = finalQueue.shift();
+    lastFinalText = text;
+    const xlate = await translate(text);
+    finalizeCurrentPair(text, xlate);
+  }
+  processingQueue = false;
+}
 
 function makeRow(tagLabel, tagCls, rowCls, text) {
   const row  = document.createElement("div");
@@ -282,23 +296,18 @@ function connect() {
 
     if (data.final) {
       clearTimeout(translateTimer);
-      pendingFinal = true;                         // block interm until finalized
-      ignoringInterimUntil = Date.now() + 600;
-      lastFinalText = data.final;
-      const xlate = await translate(data.final);
-      finalizeCurrentPair(data.final, xlate);
-      pendingFinal = false;                        // unblock interm after finalize
+      finalQueue.push(data.final);
+      drainFinalQueue();
       return;
     }
 
     if (data.interm) {
-      if (pendingFinal) return;                    // wait for final to complete
-      if (Date.now() < ignoringInterimUntil) return;
+      if (processingQueue) return;
       if (data.interm === lastFinalText) return;
       updateCurrentOriginal(data.interm);
       clearTimeout(translateTimer);
       translateTimer = setTimeout(async () => {
-        if (pendingFinal) return;                  // final arrived while waiting
+        if (processingQueue) return;
         const xlate = await translate(data.interm);
         updateCurrentTranslation(xlate);
       }, 350);
