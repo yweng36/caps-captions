@@ -7,20 +7,30 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  body {
+  html, body {
+    height: 100%;
     background: #f8f9fa;
     font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    padding: 20px 24px;
-    min-height: 100vh;
   }
 
-  #container { display: flex; flex-direction: column; gap: 18px; }
-
-  .pair {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
+  /* Scrollable caption area fills full viewport */
+  #scroll-area {
+    height: 100vh;
+    overflow-y: auto;
+    padding: 20px 24px 100px;   /* bottom padding leaves room for Live btn */
+    scroll-behavior: smooth;
   }
+
+  /* Custom scrollbar — subtle but visible */
+  #scroll-area::-webkit-scrollbar       { width: 6px; }
+  #scroll-area::-webkit-scrollbar-track { background: transparent; }
+  #scroll-area::-webkit-scrollbar-thumb { background: #c8d0da; border-radius: 3px; }
+  #scroll-area::-webkit-scrollbar-thumb:hover { background: #9aa5b4; }
+
+  #container { display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── Caption pair ───────────────────────────────────────────── */
+  .pair { display: flex; flex-direction: column; gap: 5px; }
 
   .row {
     display: flex;
@@ -42,30 +52,40 @@
   .tag.en { background: #1f6feb; }
   .tag.fr { background: #c0392b; }
 
-  /* Original line: small, grey */
-  .row.original .text {
+  .row.original .text     { font-size: 14px; color: #8a9ab0; font-style: italic; }
+  .row.translation .text  { font-size: 22px; color: #0e1b2a; font-weight: 500; }
+
+  /* Current (streaming) pair */
+  .pair.current .row.original .text    { color: #6b7f96; }
+  .pair.current .row.translation .text { color: #5a7aaa; font-weight: 400; }
+
+  /* ── ▼ Live button ──────────────────────────────────────────── */
+  #live-btn {
+    display: none;            /* shown only when scrolled up */
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    align-items: center;
+    gap: 6px;
+    background: #1f6feb;
+    color: #fff;
     font-size: 14px;
-    color: #8a9ab0;
-    font-style: italic;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(31,111,235,.35);
+    transition: opacity .2s;
+    z-index: 10;
   }
+  #live-btn:hover { opacity: .88; }
 
-  /* Translation line: prominent */
-  .row.translation .text {
-    font-size: 22px;
-    color: #0e1b2a;
-    font-weight: 500;
-  }
-
-  /* Current (streaming) pair: both rows slightly muted */
-  .pair.current .row.original .text  { color: #6b7f96; }
-  .pair.current .row.translation .text {
-    color: #5a7aaa;
-    font-weight: 400;
-  }
-
+  /* ── Status dot ─────────────────────────────────────────────── */
   #status {
     position: fixed;
-    bottom: 10px;
+    top: 10px;
     right: 14px;
     font-size: 11px;
     color: #bbb;
@@ -73,48 +93,104 @@
 </style>
 </head>
 <body>
-<div id="container"></div>
+
+<div id="scroll-area">
+  <div id="container"></div>
+</div>
+
+<button id="live-btn">▼ Live</button>
 <div id="status">connecting…</div>
 
 <script>
 /* ── Config ──────────────────────────────────────────────────── */
 const GOOGLE_KEY = "AIzaSyBcNjS1FeOoCg02fKnFk_aIARfUSd8JBh0";
-const MAX_PAIRS  = 2;   // completed pairs kept on screen
 
-const p          = new URLSearchParams(location.search);
-const ROOM       = p.get("room");
-const FROM_LANG  = p.get("fromlang");   // "en" or "fr"
-const TO_LANG    = p.get("translate");  // "fr" or "en"
+const p         = new URLSearchParams(location.search);
+const ROOM      = p.get("room");
+const FROM_LANG = p.get("fromlang");
+const TO_LANG   = p.get("translate");
 
-const container  = document.getElementById("container");
-const statusEl   = document.getElementById("status");
+const scrollArea  = document.getElementById("scroll-area");
+const container   = document.getElementById("container");
+const statusEl    = document.getElementById("status");
+const liveBtn     = document.getElementById("live-btn");
 
-/* ── Language labels ─────────────────────────────────────────── */
-const TAG = { en: "EN", fr: "FR" };
-const originalTag    = FROM_LANG?.toUpperCase() || "??";
-const translationTag = TO_LANG?.toUpperCase()   || "??";
+const originalTag    = (FROM_LANG || "??").toUpperCase();
+const translationTag = (TO_LANG   || "??").toUpperCase();
 const originalCls    = FROM_LANG || "en";
 const translationCls = TO_LANG   || "fr";
 
-/* ── State ───────────────────────────────────────────────────── */
-let completedPairs       = [];   // DOM elements
-let currentPair          = null; // { el, origText, xlateText }
-let translateTimer       = null;
+/* ── Scroll state ────────────────────────────────────────────── */
+let isScrolledUp  = false;
+let returnTimer   = null;
+let hasNewContent = false;
+
+function nearBottom() {
+  return scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight < 80;
+}
+function scrollToBottom() {
+  scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: "smooth" });
+}
+function showLiveBtn() { liveBtn.style.display = "flex"; }
+function hideLiveBtn()  { liveBtn.style.display = "none"; }
+
+function onNewContent() {
+  hasNewContent = true;
+  if (!isScrolledUp) {
+    scrollToBottom();
+  } else {
+    clearTimeout(returnTimer);
+    returnTimer = setTimeout(() => {
+      isScrolledUp = false;
+      hasNewContent = false;
+      hideLiveBtn();
+      scrollToBottom();
+    }, 5000);
+  }
+}
+
+scrollArea.addEventListener("scroll", () => {
+  if (nearBottom()) {
+    isScrolledUp = false;
+    clearTimeout(returnTimer);
+    hideLiveBtn();
+  } else {
+    if (!isScrolledUp) { isScrolledUp = true; showLiveBtn(); }
+    if (hasNewContent) {
+      clearTimeout(returnTimer);
+      returnTimer = setTimeout(() => {
+        isScrolledUp = false;
+        hasNewContent = false;
+        hideLiveBtn();
+        scrollToBottom();
+      }, 5000);
+    }
+  }
+}, { passive: true });
+
+liveBtn.addEventListener("click", () => {
+  isScrolledUp = false;
+  hasNewContent = false;
+  clearTimeout(returnTimer);
+  hideLiveBtn();
+  scrollToBottom();
+});
+
+/* ── Caption pair state ──────────────────────────────────────── */
+let currentPair   = null;   // { el, origSpan, xlateSpan }
+let lastFinalText = "";
+let translateTimer = null;
 let ignoringInterimUntil = 0;
 
-/* ── DOM helpers ─────────────────────────────────────────────── */
-function makeRow(tagLabel, tagCls, rowCls, text, textMod) {
+function makeRow(tagLabel, tagCls, rowCls, text) {
   const row  = document.createElement("div");
   row.className = `row ${rowCls}`;
-
   const tag  = document.createElement("span");
   tag.className = `tag ${tagCls}`;
   tag.textContent = tagLabel;
-
   const span = document.createElement("span");
-  span.className = `text${textMod ? " " + textMod : ""}`;
+  span.className = "text";
   span.textContent = text;
-
   row.appendChild(tag);
   row.appendChild(span);
   return { row, span };
@@ -123,20 +199,18 @@ function makeRow(tagLabel, tagCls, rowCls, text, textMod) {
 function createCurrentPair(interimText) {
   const el = document.createElement("div");
   el.className = "pair current";
-
-  const { row: origRow,  span: origSpan  } = makeRow(originalTag,    originalCls,    "original",    interimText, "");
-  const { row: xlateRow, span: xlateSpan } = makeRow(translationTag, translationCls, "translation", "", "");
-
-  el.appendChild(origRow);
-  el.appendChild(xlateRow);
+  const { row: oRow, span: oSpan } = makeRow(originalTag,    originalCls,    "original",    interimText);
+  const { row: xRow, span: xSpan } = makeRow(translationTag, translationCls, "translation", "");
+  el.appendChild(oRow);
+  el.appendChild(xRow);
   container.appendChild(el);
-
-  currentPair = { el, origSpan, xlateSpan };
+  currentPair = { el, origSpan: oSpan, xlateSpan: xSpan };
+  onNewContent();
 }
 
 function updateCurrentOriginal(text) {
   if (!currentPair) createCurrentPair(text);
-  else currentPair.origSpan.textContent = text;
+  else { currentPair.origSpan.textContent = text; onNewContent(); }
 }
 
 function updateCurrentTranslation(text) {
@@ -146,24 +220,11 @@ function updateCurrentTranslation(text) {
 
 function finalizeCurrentPair(origText, xlateText) {
   if (!currentPair) createCurrentPair(origText);
-
   currentPair.origSpan.textContent  = origText;
   currentPair.xlateSpan.textContent = xlateText;
   currentPair.el.classList.remove("current");
-
-  completedPairs.push(currentPair.el);
   currentPair = null;
-
-  while (completedPairs.length > MAX_PAIRS) {
-    completedPairs[0].remove();
-    completedPairs.shift();
-  }
-}
-
-function clearAll() {
-  container.innerHTML = "";
-  completedPairs = [];
-  currentPair = null;
+  onNewContent();
 }
 
 /* ── Google Translate ────────────────────────────────────────── */
@@ -176,9 +237,7 @@ async function translate(text) {
     const res  = await fetch(url);
     const data = await res.json();
     return data?.data?.translations?.[0]?.translatedText || text;
-  } catch {
-    return text;
-  }
+  } catch { return text; }
 }
 
 /* ── WebSocket ───────────────────────────────────────────────── */
@@ -189,7 +248,8 @@ function connect() {
 
   socket.onopen = () => {
     socket.send(JSON.stringify({ join: ROOM }));
-    statusEl.textContent = "live";
+    statusEl.textContent = "● live";
+    statusEl.style.color = "#4caf50";
     retryDelay = 1000;
   };
 
@@ -197,11 +257,19 @@ function connect() {
     let data;
     try { data = JSON.parse(evt.data); } catch { return; }
 
-    if (data.c) { clearAll(); return; }
+    if (data.c) {
+      // clear signal — don't wipe history, just end current pair
+      if (currentPair) {
+        currentPair.el.classList.remove("current");
+        currentPair = null;
+      }
+      return;
+    }
 
     if (data.final) {
       clearTimeout(translateTimer);
       ignoringInterimUntil = Date.now() + 600;
+      lastFinalText = data.final;
       const xlate = await translate(data.final);
       finalizeCurrentPair(data.final, xlate);
       return;
@@ -209,6 +277,7 @@ function connect() {
 
     if (data.interm) {
       if (Date.now() < ignoringInterimUntil) return;
+      if (data.interm === lastFinalText) return;   // skip carryover
       updateCurrentOriginal(data.interm);
       clearTimeout(translateTimer);
       translateTimer = setTimeout(async () => {
@@ -220,6 +289,7 @@ function connect() {
 
   socket.onclose = () => {
     statusEl.textContent = "reconnecting…";
+    statusEl.style.color = "#bbb";
     setTimeout(connect, retryDelay);
     retryDelay = Math.min(retryDelay * 2, 30000);
   };
