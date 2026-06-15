@@ -169,26 +169,32 @@ liveBtnEl.addEventListener("click", () => {
 });
 
 /* ── Live area ────────────────────────────────────────────── */
-let translateTimer = null;
-let liveGen = 0;   // incremented whenever live area is invalidated
+let translateTimer       = null;
+let liveGen              = 0;   // incremented to cancel stale translate() results
+let lastTranslatedLength = 0;   // char length at last translation attempt
 
 function setLiveOrig(text) {
   liveOrigTextEl.textContent = text;
   liveOrigTagEl.classList.toggle("visible", !!text);
   onNewContent();
 
-  // Debounced translation preview: fires 450ms after speech pauses
   clearTimeout(translateTimer);
   const myGen = ++liveGen;
 
   if (!text.trim()) { clearLiveXlate(); return; }
 
+  // Translate after 450ms pause OR as soon as text grows by 30+ chars since
+  // the last translation — whichever comes first. This keeps translation
+  // responsive during continuous speech (e.g. YouTube / unbroken narration).
+  const grewEnough = (text.length - lastTranslatedLength) >= 30;
+
   translateTimer = setTimeout(async () => {
     if (processingQueue || liveGen !== myGen) return;
+    lastTranslatedLength = text.length;
     const xlate = await translate(text);
-    if (processingQueue || liveGen !== myGen) return; // guard stale result
+    if (processingQueue || liveGen !== myGen) return;
     setLiveXlate(xlate);
-  }, 450);
+  }, grewEnough ? 80 : 450);
 }
 
 function setLiveXlate(text) {
@@ -200,6 +206,7 @@ function setLiveXlate(text) {
 function clearLive() {
   liveGen++;                          // invalidate any in-flight debounce translate
   clearTimeout(translateTimer);
+  lastTranslatedLength = 0;
   liveOrigTextEl.textContent  = ""; liveOrigTagEl.classList.remove("visible");
   liveXlateTextEl.textContent = ""; liveXlateTagEl.classList.remove("visible");
 }
