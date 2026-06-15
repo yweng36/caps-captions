@@ -187,10 +187,8 @@ const ROOMS = {
   fr: { id: "caps-agm-fr-3zuxvho7nu", fromlang: "fr" },
 };
 
-/* CAPTION.Ninja overlay 参数（只显示译文，不要 dual）
-   - maxlines=3 : 最多保留 3 行
-   - autofinal=800 : 静音 800ms 自动定稿，断句更利落 */
-const OVERLAY_PARAMS = "maxlines=3&autofinal=800";
+const OVERLAY_BASE = "https://yweng36.github.io/caps-captions/overlay.html";
+const MAX_LINES = 3;
 
 /* bilingual — each button uses its own language only */
 const SOURCE_CLS = { en: "en", fr: "fr" };
@@ -206,10 +204,13 @@ const LANGS = [
 const GOOGLE_KEY = "AIzaSyBcNjS1FeOoCg02fKnFk_aIARfUSd8JBh0";
 
 function buildOverlayUrl(room, t, sourceCode) {
-  if (t.code === sourceCode) {
-    return `https://caption.ninja/overlay?room=${room.id}&${OVERLAY_PARAMS}`;
+  const p = new URLSearchParams({ room: room.id, maxlines: MAX_LINES });
+  if (t.code !== sourceCode) {
+    p.set("fromlang",  room.fromlang);
+    p.set("translate", t.translateCode);
+    p.set("googlekey", GOOGLE_KEY);
   }
-  return `https://caption.ninja/overlay?room=${room.id}&fromlang=${room.fromlang}&translate=${t.translateCode}&googlekey=${GOOGLE_KEY}&${OVERLAY_PARAMS}`;
+  return `${OVERLAY_BASE}?${p.toString()}`;
 }
 
 function sameHint(code, sourceCode) {

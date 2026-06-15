@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Captions</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #f8f9fa;
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    padding: 20px;
+    min-height: 100vh;
+  }
+
+  #captions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .line {
+    font-size: 24px;
+    line-height: 1.5;
+    padding: 10px 16px;
+    background: #ffffff;
+    border-left: 4px solid #1f6feb;
+    border-radius: 0 8px 8px 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    color: #0e1b2a;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+  }
+
+  .interim {
+    color: #888;
+    border-left-color: #ccc;
+    box-shadow: none;
+  }
+
+  #status {
+    position: fixed;
+    bottom: 10px;
+    right: 14px;
+    font-size: 11px;
+    color: #aaa;
+  }
+</style>
+</head>
+<body>
+<div id="captions"></div>
+<div id="status">connecting…</div>
+<script>
+const params      = new URLSearchParams(location.search);
+const ROOM        = params.get("room");
+const TRANSLATE   = params.get("translate");
+const FROM_LANG   = params.get("fromlang");
+const GOOGLE_KEY  = params.get("googlekey");
+const MAX_LINES   = parseInt(params.get("maxlines") || "3");
+const NEED_XLATE  = !!(TRANSLATE && FROM_LANG && TRANSLATE !== FROM_LANG && GOOGLE_KEY);
+
+const container   = document.getElementById("captions");
+const statusEl    = document.getElementById("status");
+let finalLines    = [];
+let interimEl     = null;
+
+function setStatus(msg) { statusEl.textContent = msg; }
+
+/* ── DOM helpers ─────────────────────────────────────────────── */
+function addFinalLine(text) {
+  const div = document.createElement("div");
+  div.className = "line";
+  div.textContent = text;
+  if (interimEl) container.insertBefore(div, interimEl);
+  else            container.appendChild(div);
+  finalLines.push(div);
+
+  while (finalLines.length > MAX_LINES) {
+    finalLines[0].remove();
+    finalLines.shift();
+  }
+}
+
+function setInterim(text) {
+  if (!interimEl) {
+    interimEl = document.createElement("div");
+    interimEl.className = "line interim";
+    container.appendChild(interimEl);
+  }
+  interimEl.textContent = text;
+}
+
+function clearInterim() {
+  if (interimEl) { interimEl.remove(); interimEl = null; }
+}
+
+/* ── Google Translate ────────────────────────────────────────── */
+async function translateText(text) {
+  try {
+    const url = `https://translation.googleapis.com/language/translate/v2`
+      + `?key=${GOOGLE_KEY}&q=${encodeURIComponent(text)}`
+      + `&source=${FROM_LANG}&target=${TRANSLATE}&format=text`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    return data?.data?.translations?.[0]?.translatedText || text;
+  } catch {
+    return text;
+  }
+}
+
+/* ── WebSocket ───────────────────────────────────────────────── */
+let socket, retryDelay = 1000;
+
+function connect() {
+  socket = new WebSocket("wss://api.caption.ninja:443");
+
+  socket.onopen = () => {
+    socket.send(JSON.stringify({ join: ROOM }));
+    setStatus("live");
+    retryDelay = 1000;
+  };
+
+  socket.onmessage = async (evt) => {
+    let data;
+    try { data = JSON.parse(evt.data); } catch { return; }
+
+    if (data.c) {
+      finalLines.forEach(el => el.remove());
+      finalLines = [];
+      clearInterim();
+      return;
+    }
+
+    if (data.final) {
+      clearInterim();
+      const text = NEED_XLATE ? await translateText(data.final) : data.final;
+      addFinalLine(text);
+    } else if (data.interm && !NEED_XLATE) {
+      setInterim(data.interm);
+    }
+  };
+
+  socket.onclose = () => {
+    setStatus("reconnecting…");
+    setTimeout(connect, retryDelay);
+    retryDelay = Math.min(retryDelay * 2, 30000);
+  };
+
+  socket.onerror = () => socket.close();
+}
+
+if (ROOM) connect();
+else container.innerHTML = '<div class="line">❌ No room ID in URL.</div>';
+</script>
+</body>
+</html>
