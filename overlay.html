@@ -318,7 +318,7 @@ Object.keys(ROOMS).forEach(connectRoom);
 
 // Show warning if no WebSocket messages for 20s (capture likely stopped)
 setInterval(() => {
-  if (Date.now() - lastMessageAt > 20000) {
+  if (Date.now() - lastMessageAt > 10000) {
     inactiveWarn.style.display = "block";
   }
 }, 5000);
