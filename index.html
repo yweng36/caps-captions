@@ -183,8 +183,8 @@
    配置：部署时改这两个房间号为你自己的随机串
    ==================================================================== */
 const ROOMS = {
-  en: "caps-agm-en-miyl2rw8q3",   // 发言为英语 → 这个 room
-  fr: "caps-agm-fr-3zuxvho7nu",   // 发言为法语 → 这个 room
+  en: { id: "caps-agm-en-miyl2rw8q3", fromlang: "en" },
+  fr: { id: "caps-agm-fr-3zuxvho7nu", fromlang: "fr" },
 };
 
 /* CAPTION.Ninja overlay 参数（只显示译文，不要 dual）
@@ -205,9 +205,9 @@ const LANGS = [
 
 function buildOverlayUrl(room, t, sourceCode) {
   if (t.code === sourceCode) {
-    return `https://caption.ninja/overlay?room=${room}&${OVERLAY_PARAMS}`;
+    return `https://caption.ninja/overlay?room=${room.id}&${OVERLAY_PARAMS}`;
   }
-  return `https://caption.ninja/overlay?room=${room}&translate=${t.translateCode}&${OVERLAY_PARAMS}`;
+  return `https://caption.ninja/overlay?room=${room.id}&fromlang=${room.fromlang}&translate=${t.translateCode}&${OVERLAY_PARAMS}`;
 }
 
 function sameHint(code, sourceCode) {
@@ -239,6 +239,7 @@ function render() {
   }
 
   const room = ROOMS[source];
+
 
   const buttons = LANGS.map(t => {
     const url = buildOverlayUrl(room, t, source);
