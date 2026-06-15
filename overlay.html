@@ -151,10 +151,11 @@ async function translateText(text, from, to) {
 function norm(t) { return t.trim().toLowerCase().replace(/[.!?,;:…]+$/, "").trim(); }
 
 /* ── Live area ────────────────────────────────────────── */
-let liveRoomKey    = null;   // which room owns the live area right now
-let liveGen        = 0;
-let translateTimer = null;
+let liveRoomKey     = null;
+let liveGen         = 0;
+let translateTimer  = null;
 let lastTranslateAt = 0;
+let liveStartedAt   = 0;   // when current live segment began
 
 function setLiveRoom(key) {
   const cfg = ROOMS[key];
@@ -164,6 +165,7 @@ function setLiveRoom(key) {
 }
 
 function setLiveOrig(text, cfg) {
+  if (!loText.textContent && text) liveStartedAt = Date.now();
   loText.textContent = text;
   loTag.classList.toggle("on", !!text);
   onNewContent();
@@ -187,6 +189,7 @@ function clearLive() {
   liveGen++; clearTimeout(translateTimer);
   loText.textContent = ""; loTag.classList.remove("on");
   lxText.textContent = ""; lxTag.classList.remove("on");
+  liveStartedAt = 0;
 }
 
 function clearLiveXlate() {
@@ -301,22 +304,29 @@ function connectRoom(key) {
 
 Object.keys(ROOMS).forEach(connectRoom);
 
-// Force-translate live text every 1.5s during continuous speech.
-// Uses its own gen counter — independent of liveGen (which interim events
-// increment constantly), so fast speech no longer blocks the result.
+// Every 500ms: if live text hasn't been translated in 1.5s, translate it.
+// If the live segment has been running for 3s+, also commit it as a
+// history pair so the audience sees a translation without waiting for
+// a long speaker pause. Uses own gen counter, independent of liveGen.
 let intervalGen = 0;
 setInterval(() => {
   const text = loText.textContent;
   if (!text || !liveRoomKey) return;
   if (Date.now() - lastTranslateAt < 1500) return;
-  const cfg = ROOMS[liveRoomKey];
-  const myGen = ++intervalGen;
+  const cfg    = ROOMS[liveRoomKey];
+  const myGen  = ++intervalGen;
+  const snapLiveStartedAt = liveStartedAt;
   lastTranslateAt = Date.now();
   translateText(text, cfg.fromlang, cfg.tolang).then(xlate => {
     if (intervalGen !== myGen) return;
     lxText.textContent = xlate;
     lxTag.classList.toggle("on", !!xlate);
     onNewContent();
+    // Soft-final: speaker talking >3s without pause → commit to history
+    if (xlate && snapLiveStartedAt && (Date.now() - snapLiveStartedAt) >= 3000) {
+      addPair(text, xlate, cfg);
+      clearLive();
+    }
   });
 }, 500);
 </script>
