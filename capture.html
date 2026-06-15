@@ -100,17 +100,48 @@ const CAPTURE_URLS = {
   en: "https://caption.ninja/?room=caps-agm-en-miyl2rw8q3&lang=en-US&autofinal=800",
   fr: "https://caption.ninja/?room=caps-agm-fr-3zuxvho7nu&lang=fr-CA&autofinal=800",
 };
+const ROOM_IDS = {
+  en: "caps-agm-en-miyl2rw8q3",
+  fr: "caps-agm-fr-3zuxvho7nu",
+};
 
-let captureWin  = null;
-let activeLang  = null;
+let captureWin     = null;
+let activeLang     = null;
+let watchdogWs     = null;
+let watchdogTimer  = null;
+const WATCHDOG_MS  = 20000;
+
+function resetWatchdog() {
+  clearTimeout(watchdogTimer);
+  watchdogTimer = setTimeout(() => {
+    if (activeLang) {
+      const lang = activeLang;
+      switchTo(lang);
+    }
+  }, WATCHDOG_MS);
+}
+
+function startWatchdog(lang) {
+  stopWatchdog();
+  const ws = new WebSocket("wss://api.caption.ninja:443");
+  ws.onopen  = () => { ws.send(JSON.stringify({ join: ROOM_IDS[lang] })); resetWatchdog(); };
+  ws.onmessage = () => resetWatchdog();
+  ws.onclose = () => { if (watchdogWs === ws) { watchdogWs = null; if (activeLang) startWatchdog(activeLang); } };
+  ws.onerror = () => ws.close();
+  watchdogWs = ws;
+}
+
+function stopWatchdog() {
+  clearTimeout(watchdogTimer);
+  if (watchdogWs) { watchdogWs.onclose = null; watchdogWs.close(); watchdogWs = null; }
+}
 
 function switchTo(lang) {
-  // Close existing capture window (if open)
   if (captureWin && !captureWin.closed) captureWin.close();
-
   captureWin = window.open(CAPTURE_URLS[lang], "caps_capture",
     "width=900,height=320,menubar=no,toolbar=no,location=yes,status=no");
   activeLang = lang;
+  startWatchdog(lang);
   render();
 }
 
@@ -118,6 +149,7 @@ function stopCapture() {
   if (captureWin && !captureWin.closed) captureWin.close();
   captureWin = null;
   activeLang = null;
+  stopWatchdog();
   render();
 }
 
