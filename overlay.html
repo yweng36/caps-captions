@@ -62,8 +62,10 @@ const NEED_XLATE  = !!(TRANSLATE && FROM_LANG && TRANSLATE !== FROM_LANG && GOOG
 
 const container   = document.getElementById("captions");
 const statusEl    = document.getElementById("status");
-let finalLines    = [];
-let interimEl     = null;
+let finalLines        = [];
+let interimEl         = null;
+let translateTimer    = null;
+let ignoringInterimUntil = 0;   // suppress stale interim right after a final
 
 function setStatus(msg) { statusEl.textContent = msg; }
 
@@ -133,11 +135,21 @@ function connect() {
     }
 
     if (data.final) {
+      clearTimeout(translateTimer);
+      ignoringInterimUntil = Date.now() + 600;
       clearInterim();
       const text = NEED_XLATE ? await translateText(data.final) : data.final;
       addFinalLine(text);
     } else if (data.interm) {
+      if (Date.now() < ignoringInterimUntil) return;  // suppress stale interim after final
       setInterim(data.interm);
+      if (NEED_XLATE) {
+        clearTimeout(translateTimer);
+        translateTimer = setTimeout(async () => {
+          const translated = await translateText(data.interm);
+          setInterim(translated);
+        }, 350);
+      }
     }
   };
 
