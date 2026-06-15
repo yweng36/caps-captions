@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAPS AGM — Capture Switcher</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; background: #0e1b2a;
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #e2e8f0; -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 32px; padding: 32px;
+  }
+
+  h1 { font-size: 18px; font-weight: 600; letter-spacing: .02em; color: #94a3b8; }
+
+  .buttons { display: flex; gap: 16px; }
+
+  .btn {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    width: 180px; padding: 28px 20px;
+    border: 2px solid #2d3f55; border-radius: 16px;
+    background: #17263a; color: #94a3b8;
+    font-size: 20px; font-weight: 700; cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s, transform .08s;
+    user-select: none;
+  }
+  .btn .sub { font-size: 11px; font-weight: 500; letter-spacing: .08em; opacity: .7; }
+  .btn:hover { border-color: #4a6fa5; color: #e2e8f0; }
+  .btn:active { transform: scale(.97); }
+
+  .btn.active-en {
+    border-color: #1f6feb; background: #0d2140;
+    color: #60a5fa; box-shadow: 0 0 0 4px rgba(31,111,235,.18);
+  }
+  .btn.active-fr {
+    border-color: #c0392b; background: #2d0f0e;
+    color: #f87171; box-shadow: 0 0 0 4px rgba(192,57,43,.18);
+  }
+
+  .badge {
+    font-size: 11px; font-weight: 800; letter-spacing: .1em;
+    padding: 3px 8px; border-radius: 5px; color: #fff;
+  }
+  #badge-en { background: #1f6feb; }
+  #badge-fr { background: #c0392b; }
+
+  .stop-btn {
+    padding: 10px 24px; border-radius: 8px; border: 1px solid #2d3f55;
+    background: transparent; color: #64748b; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: border-color .15s, color .15s;
+  }
+  .stop-btn:hover { border-color: #ef4444; color: #ef4444; }
+  .stop-btn:disabled { opacity: .3; cursor: default; }
+
+  #status {
+    font-size: 13px; color: #475569; min-height: 20px; text-align: center;
+  }
+  #status.active { color: #94a3b8; }
+
+  .hint { font-size: 11px; color: #334155; text-align: center; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CAPS AGM — Capture Control</h1>
+
+  <div class="buttons">
+    <button class="btn" id="btn-en" onclick="switchTo('en')">
+      <span class="badge" id="badge-en">EN</span>
+      English Speaker
+      <span class="sub">en-US · caps-agm-en</span>
+    </button>
+    <button class="btn" id="btn-fr" onclick="switchTo('fr')">
+      <span class="badge" id="badge-fr">FR</span>
+      Français parlé
+      <span class="sub">fr-CA · caps-agm-fr</span>
+    </button>
+  </div>
+
+  <button class="stop-btn" id="stop-btn" onclick="stopCapture()" disabled>
+    ■ Stop capture
+  </button>
+
+  <div id="status">No capture active</div>
+
+  <div class="hint">
+    Keyboard: <b>E</b> = English · <b>F</b> = French · <b>Esc</b> = Stop
+  </div>
+</div>
+
+<script>
+const CAPTURE_URLS = {
+  en: "https://caption.ninja/?room=caps-agm-en-miyl2rw8q3&lang=en-US&autofinal=800",
+  fr: "https://caption.ninja/?room=caps-agm-fr-3zuxvho7nu&lang=fr-CA&autofinal=800",
+};
+
+let captureWin  = null;
+let activeLang  = null;
+
+function switchTo(lang) {
+  // Close existing capture window (if open)
+  if (captureWin && !captureWin.closed) captureWin.close();
+
+  captureWin = window.open(CAPTURE_URLS[lang], "caps_capture",
+    "width=900,height=320,menubar=no,toolbar=no,location=yes,status=no");
+  activeLang = lang;
+  render();
+}
+
+function stopCapture() {
+  if (captureWin && !captureWin.closed) captureWin.close();
+  captureWin = null;
+  activeLang = null;
+  render();
+}
+
+function render() {
+  const enBtn   = document.getElementById("btn-en");
+  const frBtn   = document.getElementById("btn-fr");
+  const stopBtn = document.getElementById("stop-btn");
+  const status  = document.getElementById("status");
+
+  enBtn.className = "btn" + (activeLang === "en" ? " active-en" : "");
+  frBtn.className = "btn" + (activeLang === "fr" ? " active-fr" : "");
+  stopBtn.disabled = !activeLang;
+
+  if (activeLang === "en") {
+    status.textContent = "● Capturing — English (en-US)";
+    status.className = "active";
+  } else if (activeLang === "fr") {
+    status.textContent = "● Capturing — Français (fr-CA)";
+    status.className = "active";
+  } else {
+    status.textContent = "No capture active";
+    status.className = "";
+  }
+}
+
+// Keyboard shortcuts
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (e.key === "e" || e.key === "E") switchTo("en");
+  if (e.key === "f" || e.key === "F") switchTo("fr");
+  if (e.key === "Escape") stopCapture();
+});
+
+// Poll to detect if user manually closed the capture window
+setInterval(() => {
+  if (activeLang && captureWin && captureWin.closed) {
+    captureWin = null;
+    activeLang = null;
+    render();
+  }
+}, 1000);
+
+render();
+</script>
+</body>
+</html>
