@@ -10,33 +10,57 @@
   body {
     background: #f8f9fa;
     font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    padding: 20px;
+    padding: 20px 24px;
     min-height: 100vh;
   }
 
-  #captions {
+  #container { display: flex; flex-direction: column; gap: 18px; }
+
+  .pair {
     display: flex;
     flex-direction: column;
+    gap: 5px;
+  }
+
+  .row {
+    display: flex;
+    align-items: baseline;
     gap: 10px;
+    line-height: 1.45;
+    word-break: break-word;
   }
 
-  .line {
-    font-size: 24px;
-    line-height: 1.5;
-    padding: 10px 16px;
-    background: #ffffff;
-    border-left: 4px solid #1f6feb;
-    border-radius: 0 8px 8px 0;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  .tag {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #fff;
+  }
+  .tag.en { background: #1f6feb; }
+  .tag.fr { background: #c0392b; }
+
+  /* Original line: small, grey */
+  .row.original .text {
+    font-size: 14px;
+    color: #8a9ab0;
+    font-style: italic;
+  }
+
+  /* Translation line: prominent */
+  .row.translation .text {
+    font-size: 22px;
     color: #0e1b2a;
-    word-wrap: break-word;
-    white-space: pre-wrap;
+    font-weight: 500;
   }
 
-  .interim {
-    color: #888;
-    border-left-color: #ccc;
-    box-shadow: none;
+  /* Current (streaming) pair: both rows slightly muted */
+  .pair.current .row.original .text  { color: #6b7f96; }
+  .pair.current .row.translation .text {
+    color: #5a7aaa;
+    font-weight: 400;
   }
 
   #status {
@@ -44,65 +68,111 @@
     bottom: 10px;
     right: 14px;
     font-size: 11px;
-    color: #aaa;
+    color: #bbb;
   }
 </style>
 </head>
 <body>
-<div id="captions"></div>
+<div id="container"></div>
 <div id="status">connecting…</div>
+
 <script>
-const params      = new URLSearchParams(location.search);
-const ROOM        = params.get("room");
-const TRANSLATE   = params.get("translate");
-const FROM_LANG   = params.get("fromlang");
-const GOOGLE_KEY  = params.get("googlekey");
-const MAX_LINES   = parseInt(params.get("maxlines") || "3");
-const NEED_XLATE  = !!(TRANSLATE && FROM_LANG && TRANSLATE !== FROM_LANG && GOOGLE_KEY);
+/* ── Config ──────────────────────────────────────────────────── */
+const GOOGLE_KEY = "AIzaSyBcNjS1FeOoCg02fKnFk_aIARfUSd8JBh0";
+const MAX_PAIRS  = 2;   // completed pairs kept on screen
 
-const container   = document.getElementById("captions");
-const statusEl    = document.getElementById("status");
-let finalLines        = [];
-let interimEl         = null;
-let translateTimer    = null;
-let ignoringInterimUntil = 0;   // suppress stale interim right after a final
+const p          = new URLSearchParams(location.search);
+const ROOM       = p.get("room");
+const FROM_LANG  = p.get("fromlang");   // "en" or "fr"
+const TO_LANG    = p.get("translate");  // "fr" or "en"
 
-function setStatus(msg) { statusEl.textContent = msg; }
+const container  = document.getElementById("container");
+const statusEl   = document.getElementById("status");
+
+/* ── Language labels ─────────────────────────────────────────── */
+const TAG = { en: "EN", fr: "FR" };
+const originalTag    = FROM_LANG?.toUpperCase() || "??";
+const translationTag = TO_LANG?.toUpperCase()   || "??";
+const originalCls    = FROM_LANG || "en";
+const translationCls = TO_LANG   || "fr";
+
+/* ── State ───────────────────────────────────────────────────── */
+let completedPairs       = [];   // DOM elements
+let currentPair          = null; // { el, origText, xlateText }
+let translateTimer       = null;
+let ignoringInterimUntil = 0;
 
 /* ── DOM helpers ─────────────────────────────────────────────── */
-function addFinalLine(text) {
-  const div = document.createElement("div");
-  div.className = "line";
-  div.textContent = text;
-  if (interimEl) container.insertBefore(div, interimEl);
-  else            container.appendChild(div);
-  finalLines.push(div);
+function makeRow(tagLabel, tagCls, rowCls, text, textMod) {
+  const row  = document.createElement("div");
+  row.className = `row ${rowCls}`;
 
-  while (finalLines.length > MAX_LINES) {
-    finalLines[0].remove();
-    finalLines.shift();
+  const tag  = document.createElement("span");
+  tag.className = `tag ${tagCls}`;
+  tag.textContent = tagLabel;
+
+  const span = document.createElement("span");
+  span.className = `text${textMod ? " " + textMod : ""}`;
+  span.textContent = text;
+
+  row.appendChild(tag);
+  row.appendChild(span);
+  return { row, span };
+}
+
+function createCurrentPair(interimText) {
+  const el = document.createElement("div");
+  el.className = "pair current";
+
+  const { row: origRow,  span: origSpan  } = makeRow(originalTag,    originalCls,    "original",    interimText, "");
+  const { row: xlateRow, span: xlateSpan } = makeRow(translationTag, translationCls, "translation", "", "");
+
+  el.appendChild(origRow);
+  el.appendChild(xlateRow);
+  container.appendChild(el);
+
+  currentPair = { el, origSpan, xlateSpan };
+}
+
+function updateCurrentOriginal(text) {
+  if (!currentPair) createCurrentPair(text);
+  else currentPair.origSpan.textContent = text;
+}
+
+function updateCurrentTranslation(text) {
+  if (!currentPair) return;
+  currentPair.xlateSpan.textContent = text;
+}
+
+function finalizeCurrentPair(origText, xlateText) {
+  if (!currentPair) createCurrentPair(origText);
+
+  currentPair.origSpan.textContent  = origText;
+  currentPair.xlateSpan.textContent = xlateText;
+  currentPair.el.classList.remove("current");
+
+  completedPairs.push(currentPair.el);
+  currentPair = null;
+
+  while (completedPairs.length > MAX_PAIRS) {
+    completedPairs[0].remove();
+    completedPairs.shift();
   }
 }
 
-function setInterim(text) {
-  if (!interimEl) {
-    interimEl = document.createElement("div");
-    interimEl.className = "line interim";
-    container.appendChild(interimEl);
-  }
-  interimEl.textContent = text;
-}
-
-function clearInterim() {
-  if (interimEl) { interimEl.remove(); interimEl = null; }
+function clearAll() {
+  container.innerHTML = "";
+  completedPairs = [];
+  currentPair = null;
 }
 
 /* ── Google Translate ────────────────────────────────────────── */
-async function translateText(text) {
+async function translate(text) {
+  if (!text.trim()) return "";
   try {
     const url = `https://translation.googleapis.com/language/translate/v2`
       + `?key=${GOOGLE_KEY}&q=${encodeURIComponent(text)}`
-      + `&source=${FROM_LANG}&target=${TRANSLATE}&format=text`;
+      + `&source=${FROM_LANG}&target=${TO_LANG}&format=text`;
     const res  = await fetch(url);
     const data = await res.json();
     return data?.data?.translations?.[0]?.translatedText || text;
@@ -119,7 +189,7 @@ function connect() {
 
   socket.onopen = () => {
     socket.send(JSON.stringify({ join: ROOM }));
-    setStatus("live");
+    statusEl.textContent = "live";
     retryDelay = 1000;
   };
 
@@ -127,43 +197,37 @@ function connect() {
     let data;
     try { data = JSON.parse(evt.data); } catch { return; }
 
-    if (data.c) {
-      finalLines.forEach(el => el.remove());
-      finalLines = [];
-      clearInterim();
-      return;
-    }
+    if (data.c) { clearAll(); return; }
 
     if (data.final) {
       clearTimeout(translateTimer);
       ignoringInterimUntil = Date.now() + 600;
-      clearInterim();
-      const text = NEED_XLATE ? await translateText(data.final) : data.final;
-      addFinalLine(text);
-    } else if (data.interm) {
-      if (Date.now() < ignoringInterimUntil) return;  // suppress stale interim after final
-      setInterim(data.interm);
-      if (NEED_XLATE) {
-        clearTimeout(translateTimer);
-        translateTimer = setTimeout(async () => {
-          const translated = await translateText(data.interm);
-          setInterim(translated);
-        }, 350);
-      }
+      const xlate = await translate(data.final);
+      finalizeCurrentPair(data.final, xlate);
+      return;
+    }
+
+    if (data.interm) {
+      if (Date.now() < ignoringInterimUntil) return;
+      updateCurrentOriginal(data.interm);
+      clearTimeout(translateTimer);
+      translateTimer = setTimeout(async () => {
+        const xlate = await translate(data.interm);
+        updateCurrentTranslation(xlate);
+      }, 350);
     }
   };
 
   socket.onclose = () => {
-    setStatus("reconnecting…");
+    statusEl.textContent = "reconnecting…";
     setTimeout(connect, retryDelay);
     retryDelay = Math.min(retryDelay * 2, 30000);
   };
-
   socket.onerror = () => socket.close();
 }
 
 if (ROOM) connect();
-else container.innerHTML = '<div class="line">❌ No room ID in URL.</div>';
+else container.innerHTML = '<div style="color:#c00;padding:20px">No room ID in URL.</div>';
 </script>
 </body>
 </html>

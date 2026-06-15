@@ -5,25 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Live Captions · CAPS AGM</title>
 <style>
-  /* ----------------------------------------------------------------
-     配置区：部署时只改这里
-     room_en = 主讲「讲英语」时采集页用的房间号
-     room_fr = 主讲「讲法语」时采集页用的房间号
-     务必换成你自己的随机串，别用示例值。
-  ------------------------------------------------------------------*/
-
   :root {
-    --ink:        #0e1b2a;   /* 深海军蓝，主文字 */
-    --ink-soft:   #5a6b7d;   /* 次级文字 */
-    --paper:      #f6f7f9;   /* 背景 */
-    --card:       #ffffff;
-    --line:       #e2e6eb;
-    --signal:     #1f6feb;   /* 主操作蓝 */
-    --signal-ink: #ffffff;
-    --en:         #1f6feb;
-    --fr:         #c0392b;   /* 法语用一抹砖红区分 */
-    --radius:     14px;
-    --shadow:     0 1px 2px rgba(14,27,42,.06), 0 8px 24px rgba(14,27,42,.06);
+    --ink:      #0e1b2a;
+    --ink-soft: #5a6b7d;
+    --paper:    #f6f7f9;
+    --card:     #ffffff;
+    --line:     #e2e6eb;
+    --signal:   #1f6feb;
+    --en:       #1f6feb;
+    --fr:       #c0392b;
+    --radius:   14px;
+    --shadow:   0 1px 2px rgba(14,27,42,.06), 0 8px 24px rgba(14,27,42,.06);
   }
 
   * { box-sizing: border-box; }
@@ -32,7 +24,7 @@
     margin: 0;
     background: var(--paper);
     color: var(--ink);
-    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 
@@ -73,69 +65,51 @@
   }
 
   .sub {
-    font-size: 15px;
+    font-size: 14px;
     color: var(--ink-soft);
     margin: 0 0 26px;
-    line-height: 1.5;
+    line-height: 1.6;
   }
 
-  .source-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 5px 11px;
-    border-radius: 999px;
-    margin-bottom: 22px;
-  }
-  .source-tag .dot { width: 7px; height: 7px; border-radius: 50%; }
-  .source-tag.en { background: #eaf1fe; color: var(--en); }
-  .source-tag.en .dot { background: var(--en); }
-  .source-tag.fr { background: #fbecea; color: var(--fr); }
-  .source-tag.fr .dot { background: var(--fr); }
-
-  .q {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--ink-soft);
-    margin: 0 0 12px;
-  }
-
-  .langs {
-    display: grid;
-    gap: 12px;
-  }
+  .langs { display: grid; gap: 12px; }
 
   .lang-btn {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 16px 18px;
+    padding: 18px 18px;
     border: 1px solid var(--line);
     border-radius: 12px;
     background: var(--card);
     color: var(--ink);
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 600;
     cursor: pointer;
     text-decoration: none;
     transition: border-color .15s, transform .06s, box-shadow .15s;
   }
-  .lang-btn:hover {
-    border-color: var(--signal);
-    box-shadow: 0 0 0 3px rgba(31,111,235,.10);
-  }
-  .lang-btn:active { transform: translateY(1px); }
-  .lang-btn:focus-visible {
-    outline: 3px solid rgba(31,111,235,.45);
-    outline-offset: 2px;
-  }
+  .lang-btn:hover      { border-color: var(--signal); box-shadow: 0 0 0 3px rgba(31,111,235,.10); }
+  .lang-btn:active     { transform: translateY(1px); }
+  .lang-btn:focus-visible { outline: 3px solid rgba(31,111,235,.45); outline-offset: 2px; }
 
-  .lang-native { font-size: 14px; color: var(--ink-soft); font-weight: 500; }
-  .lang-left { display: flex; flex-direction: column; gap: 2px; }
-  .arrow { color: var(--signal); font-size: 18px; }
+  .btn-left  { display: flex; flex-direction: column; gap: 3px; }
+  .btn-sub   { font-size: 13px; color: var(--ink-soft); font-weight: 400; }
+  .arrow     { color: var(--signal); font-size: 18px; }
+
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #fff;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .badge.en { background: var(--en); }
+  .badge.fr { background: var(--fr); }
 
   .note {
     margin-top: 22px;
@@ -153,131 +127,55 @@
     color: var(--ink-soft);
     text-align: center;
   }
-
-  .err {
-    background: #fff7ed;
-    border: 1px solid #fed7aa;
-    color: #9a3412;
-    padding: 14px 16px;
-    border-radius: 10px;
-    font-size: 14px;
-    line-height: 1.5;
-  }
-  .err code {
-    background: #fff;
-    padding: 1px 5px;
-    border-radius: 4px;
-    border: 1px solid #fde6cc;
-    font-size: 13px;
-  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="card" id="card"><!-- JS 渲染 --></div>
+  <div class="card">
+    <p class="eyebrow">Live captions · Sous-titres en direct</p>
+    <h1>Who is speaking? · Qui parle ?</h1>
+    <p class="sub">
+      Select the speaker's language — captions open in a new window showing both languages.<br>
+      Sélectionnez la langue de l'intervenant — les sous-titres s'ouvrent dans une nouvelle fenêtre.
+    </p>
+
+    <div class="langs">
+      <a class="lang-btn" id="btn-en" href="#" target="_blank" rel="noopener">
+        <span class="btn-left">
+          <span><span class="badge en">EN</span>English speaker</span>
+          <span class="btn-sub">FR · EN bilingual captions</span>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="lang-btn" id="btn-fr" href="#" target="_blank" rel="noopener">
+        <span class="btn-left">
+          <span><span class="badge fr">FR</span>Français parlé</span>
+          <span class="btn-sub">Sous-titres bilingues FR · EN</span>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+    </div>
+
+    <div class="note">
+      <b>Tip · Conseil :</b> Keep the caption window beside Zoom. Use <b>Chrome</b> or <b>Edge</b>.<br>
+      Gardez la fenêtre de sous-titres à côté de Zoom.
+    </div>
+  </div>
   <div class="footer">CAPS · ACPP — AGM live captions</div>
 </div>
 
 <script>
-/* ====================================================================
-   配置：部署时改这两个房间号为你自己的随机串
-   ==================================================================== */
-const ROOMS = {
-  en: { id: "caps-agm-en-miyl2rw8q3", fromlang: "en" },
-  fr: { id: "caps-agm-fr-3zuxvho7nu", fromlang: "fr" },
+const OVERLAY = "https://yweng36.github.io/caps-captions/overlay.html";
+
+const SOURCES = {
+  en: { room: "caps-agm-en-miyl2rw8q3", fromlang: "en", translate: "fr" },
+  fr: { room: "caps-agm-fr-3zuxvho7nu", fromlang: "fr", translate: "en" },
 };
 
-const OVERLAY_BASE = "https://yweng36.github.io/caps-captions/overlay.html";
-const MAX_LINES = 3;
-
-/* bilingual — each button uses its own language only */
-const SOURCE_CLS = { en: "en", fr: "fr" };
-const SOURCE_LABEL = {
-  en: "English speaker",
-  fr: "Français parlé",
-};
-const LANGS = [
-  { code: "fr", translateCode: "fr", label: "Français", sub: "Sous-titres français" },
-  { code: "en", translateCode: "en", label: "English",  sub: "English captions" },
-];
-
-const GOOGLE_KEY = "AIzaSyBcNjS1FeOoCg02fKnFk_aIARfUSd8JBh0";
-
-function buildOverlayUrl(room, t, sourceCode) {
-  const p = new URLSearchParams({ room: room.id, maxlines: MAX_LINES });
-  if (t.code !== sourceCode) {
-    p.set("fromlang",  room.fromlang);
-    p.set("translate", t.translateCode);
-    p.set("googlekey", GOOGLE_KEY);
-  }
-  return `${OVERLAY_BASE}?${p.toString()}`;
-}
-
-function sameHint(code, sourceCode) {
-  if (code !== sourceCode) return "";
-  return code === "fr" ? " · original · sans traduction" : " · original · no translation";
-}
-
-function getSource() {
-  const p = new URLSearchParams(location.search);
-  const s = (p.get("source") || "").toLowerCase();
-  return (s === "en" || s === "fr") ? s : null;
-}
-
-function render() {
-  const card = document.getElementById("card");
-  const source = getSource();
-
-  if (!source) {
-    card.innerHTML = `
-      <p class="eyebrow">Live captions</p>
-      <h1>Choose a caption link</h1>
-      <div class="err">
-        This page needs to know the speaker's language. Open one of:
-        <br><br>
-        <code>?source=en</code> — when the speaker is talking in English<br>
-        <code>?source=fr</code> — when the speaker is talking in French
-      </div>`;
-    return;
-  }
-
-  const room = ROOMS[source];
-
-
-  const buttons = LANGS.map(t => {
-    const url = buildOverlayUrl(room, t, source);
-    const hint = sameHint(t.code, source);
-    return `
-      <a class="lang-btn" href="${url}" target="_blank" rel="noopener">
-        <span class="lang-left">
-          <span>${t.label}</span>
-          <span class="lang-native">${t.sub}${hint}</span>
-        </span>
-        <span class="arrow">→</span>
-      </a>`;
-  }).join("");
-
-  card.innerHTML = `
-    <p class="eyebrow">Live captions · Sous-titres en direct</p>
-    <h1>Pick your language · Choisissez votre langue</h1>
-    <p class="sub">Opens in a new window · S'ouvre dans une nouvelle fenêtre.</p>
-
-    <div class="source-tag ${SOURCE_CLS[source]}">
-      <span class="dot"></span>${SOURCE_LABEL[source]}
-    </div>
-
-    <p class="q">Show captions in · Afficher les sous-titres en :</p>
-    <div class="langs">${buttons}</div>
-
-    <div class="note">
-      <b>Tip · Conseil :</b> Captions open in a separate window — keep it beside Zoom.
-      Les sous-titres s'ouvrent dans une fenêtre séparée — gardez-la à côté de Zoom.
-      Use <b>Chrome</b> or <b>Edge</b>.
-    </div>`;
-}
-
-render();
-window.addEventListener("popstate", render);
+Object.entries(SOURCES).forEach(([lang, cfg]) => {
+  const p = new URLSearchParams({ room: cfg.room, fromlang: cfg.fromlang, translate: cfg.translate });
+  document.getElementById(`btn-${lang}`).href = `${OVERLAY}?${p}`;
+});
 </script>
 </body>
 </html>
