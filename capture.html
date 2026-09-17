@@ -78,6 +78,18 @@
   .pip-btn:hover { border-color: #60a5fa; color: #60a5fa; }
   .pip-btn.pip-active { border-color: #60a5fa; color: #60a5fa; }
   .pip-btn:disabled { opacity: .3; cursor: default; }
+
+  .xl-panel { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .xl-row { display: flex; gap: 8px; }
+  #xl-key {
+    width: 260px; padding: 8px 10px; border-radius: 8px; border: 1px solid #2d3f55;
+    background: #17263a; color: #e2e8f0; font-size: 12px;
+  }
+  #xl-status { font-size: 12px; color: #64748b; }
+  #xl-status.ok   { color: #4ade80; }
+  #xl-status.warn { color: #fb923c; }
+  #xl-status.bad  { color: #ef4444; }
+  #xl-usage { font-size: 11px; color: #475569; }
 </style>
 </head>
 <body>
@@ -110,16 +122,29 @@
   <div class="hint">
     Keyboard: <b>E</b> = English · <b>F</b> = French · <b>Esc</b> = Stop
   </div>
+
+  <div class="xl-panel">
+    <div class="xl-row">
+      <input id="xl-key" type="password" placeholder="Google Translate API key" autocomplete="off">
+      <button class="pip-btn" id="xl-save">Save key</button>
+    </div>
+    <div id="xl-status">Translation: no key</div>
+    <div id="xl-usage"></div>
+  </div>
 </div>
 
 <script>
-const CAPTURE_URLS = {
-  en: "https://caption.ninja/?room=caps-agm-en-miyl2rw8q3&lang=en-US&autofinal=800",
-  fr: "https://caption.ninja/?room=caps-agm-fr-3zuxvho7nu&lang=fr-CA&autofinal=800",
-};
+// ?test=1 uses rehearsal rooms and a fake translator (no Google calls, no cost).
+const TEST = new URLSearchParams(location.search).has("test");
+const SUFFIX = TEST ? "-test" : "";
 const ROOM_IDS = {
-  en: "caps-agm-en-miyl2rw8q3",
-  fr: "caps-agm-fr-3zuxvho7nu",
+  en: "caps-agm-en-miyl2rw8q3" + SUFFIX,
+  fr: "caps-agm-fr-3zuxvho7nu" + SUFFIX,
+};
+const XL_ROOM = "caps-agm-xl-a3fbajr1zk" + SUFFIX;
+const CAPTURE_URLS = {
+  en: `https://caption.ninja/?room=${ROOM_IDS.en}&lang=en-US&autofinal=800`,
+  fr: `https://caption.ninja/?room=${ROOM_IDS.fr}&lang=fr-CA&autofinal=800`,
 };
 
 let captureWin     = null;
@@ -210,7 +235,15 @@ async function openPip() {
   }
   if (pipWin && !pipWin.closed) return;
 
-  pipWin = await documentPictureInPicture.requestWindow({ width: 230, height: 116 });
+  try {
+    pipWin = await documentPictureInPicture.requestWindow({ width: 230, height: 116 });
+  } catch (err) {
+    pipWin = null;
+    const secure = window.isSecureContext;
+    alert("Float controls failed to open: " + err.name + " — " + err.message +
+          (secure ? "" : "\n\n(This page is NOT a secure context. Open it via the https:// GitHub Pages URL, not a local file://.)"));
+    return;
+  }
 
   const style = pipWin.document.createElement("style");
   style.textContent = `
@@ -289,6 +322,224 @@ if (!window.documentPictureInPicture) {
 }
 
 render();
+</script>
+
+<script>
+/* ── Translator: the ONLY place Google Translate is called ────────────
+   Listens to both caption rooms, translates once, and broadcasts the
+   result to XL_ROOM. Every overlay.html viewer just displays it, so the
+   bill no longer multiplies by audience size.
+   Keep exactly one capture.html tab open, or translation runs twice. */
+const XL_KEY_STORE   = "caps_translate_key";
+const XL_USAGE_STORE = "caps_translate_usage";
+const DAILY_CHAR_CAP = 600000;   // ~US$12 at US$20 per million characters
+const WARN_AT        = 0.8;
+
+const XL_CFG = {
+  en: { fromlang: "en", tolang: "fr" },
+  fr: { fromlang: "fr", tolang: "en" },
+};
+
+const xlKeyEl    = document.getElementById("xl-key");
+const xlStatusEl = document.getElementById("xl-status");
+const xlUsageEl  = document.getElementById("xl-usage");
+
+function storeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function storeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
+
+let apiKey = storeGet(XL_KEY_STORE) || "";
+let lastApiError = "";
+
+document.getElementById("xl-save").addEventListener("click", () => {
+  apiKey = xlKeyEl.value.trim();
+  storeSet(XL_KEY_STORE, apiKey);
+  xlKeyEl.value = "";
+  lastApiError = "";
+  renderXl();
+});
+
+/* Daily character counter (resets at local midnight) */
+function today() { return new Date().toLocaleDateString("en-CA"); }
+function loadUsage() {
+  try {
+    const u = JSON.parse(storeGet(XL_USAGE_STORE) || "{}");
+    if (u.day === today()) return u;
+  } catch {}
+  return { day: today(), chars: 0 };
+}
+let usage = loadUsage();
+function addUsage(n) {
+  if (usage.day !== today()) usage = { day: today(), chars: 0 };
+  usage.chars += n;
+  storeSet(XL_USAGE_STORE, JSON.stringify(usage));
+}
+function capReached() {
+  if (usage.day !== today()) usage = { day: today(), chars: 0 };
+  return usage.chars >= DAILY_CHAR_CAP;
+}
+
+function renderXl() {
+  const frac = usage.chars / DAILY_CHAR_CAP;
+  xlUsageEl.textContent =
+    `Today: ${usage.chars.toLocaleString()} / ${DAILY_CHAR_CAP.toLocaleString()} chars` +
+    ` (≈ US$${(usage.chars / 1e6 * 20).toFixed(2)})`;
+  let msg, cls;
+  if (TEST)                  { msg = "Translation: TEST mode (fake, free)"; cls = "warn"; }
+  else if (!apiKey)          { msg = "Translation: no key, viewers see originals only"; cls = "bad"; }
+  else if (capReached())     { msg = "Translation: daily cap reached, paused"; cls = "bad"; }
+  else if (lastApiError)     { msg = "Translation error: " + lastApiError; cls = "bad"; }
+  else if (frac >= WARN_AT)  { msg = "Translation: on (near daily cap)"; cls = "warn"; }
+  else                       { msg = "Translation: on"; cls = "ok"; }
+  xlStatusEl.textContent = msg;
+  xlStatusEl.className = cls;
+}
+
+async function translateText(text, from, to) {
+  if (!text.trim()) return "";
+  if (TEST) return `[${to.toUpperCase()}] ${text}`;
+  if (!apiKey || capReached()) { renderXl(); return ""; }
+  addUsage(text.length);
+  renderXl();
+  try {
+    const res  = await fetch(
+      `https://translation.googleapis.com/language/translate/v2`
+      + `?key=${encodeURIComponent(apiKey)}&q=${encodeURIComponent(text)}`
+      + `&source=${from}&target=${to}&format=text`
+    );
+    const data = await res.json();
+    if (data.error) { lastApiError = data.error.message || String(res.status); renderXl(); return ""; }
+    if (lastApiError) { lastApiError = ""; renderXl(); }
+    return data?.data?.translations?.[0]?.translatedText || "";
+  } catch (e) {
+    lastApiError = "network"; renderXl();
+    return "";
+  }
+}
+
+/* Broadcast socket */
+let xlWs = null;
+function connectXl() {
+  const ws = new WebSocket("wss://api.caption.ninja:443");
+  ws.onopen  = () => ws.send(JSON.stringify({ join: XL_ROOM }));
+  ws.onclose = () => { if (xlWs === ws) xlWs = null; setTimeout(connectXl, 2000); };
+  ws.onerror = () => ws.close();
+  xlWs = ws;
+}
+function publish(msg) {
+  if (xlWs && xlWs.readyState === WebSocket.OPEN) xlWs.send(JSON.stringify({ xl: msg }));
+}
+
+function norm(t) { return t.trim().toLowerCase().replace(/[.!?,;:…]+$/, "").trim(); }
+
+/* Live state (same timing as the old overlay: 450 ms debounce,
+   refresh at most every 1.5 s, soft-final after 3 s of speech) */
+let liveKey = null, liveOrig = "", liveXlate = "";
+let liveGen = 0, translateTimer = null, lastTranslateAt = 0, liveStartedAt = 0;
+let intervalGen = 0;
+let lastPairOrig = "";
+
+function publishLive() { publish({ t: "live", k: liveKey, o: liveOrig, x: liveXlate }); }
+
+function clearLive() {
+  liveGen++; clearTimeout(translateTimer);
+  if (liveKey) publish({ t: "clear", k: liveKey });
+  liveOrig = ""; liveXlate = ""; liveStartedAt = 0;
+}
+
+function setLiveOrig(key, text) {
+  if (liveKey !== key) { liveKey = key; liveXlate = ""; }
+  if (!liveOrig && text) liveStartedAt = Date.now();
+  liveOrig = text;
+  publishLive();
+
+  clearTimeout(translateTimer);
+  const myGen = ++liveGen;
+  if (!text.trim()) { liveXlate = ""; publishLive(); return; }
+
+  translateTimer = setTimeout(async () => {
+    if (liveGen !== myGen) return;
+    lastTranslateAt = Date.now();
+    const cfg = XL_CFG[key];
+    const xlate = await translateText(text, cfg.fromlang, cfg.tolang);
+    if (liveGen !== myGen) return;
+    liveXlate = xlate;
+    publishLive();
+  }, 450);
+}
+
+function publishPair(key, orig, xlate) {
+  lastPairOrig = orig;
+  publish({ t: "pair", k: key, o: orig, x: xlate });
+}
+
+const roomState = {};
+for (const key of Object.keys(XL_CFG)) {
+  roomState[key] = { finalQueue: [], processingFinal: false, lastFinalText: "" };
+}
+
+async function drainFinalQueue(key) {
+  const rs  = roomState[key];
+  const cfg = XL_CFG[key];
+  if (rs.processingFinal) return;
+  rs.processingFinal = true;
+  while (rs.finalQueue.length > 0) {
+    const text = rs.finalQueue.shift();
+    if (norm(text) === norm(rs.lastFinalText)) continue;
+    rs.lastFinalText = text;
+    if (liveKey === key) clearLive();
+    // Already shown as a soft-final pair: skip a second paid translation
+    if (norm(text) === norm(lastPairOrig)) continue;
+    const xlate = await translateText(text, cfg.fromlang, cfg.tolang);
+    publishPair(key, text, xlate);
+  }
+  rs.processingFinal = false;
+}
+
+function listenRoom(key) {
+  const rs = roomState[key];
+  let retryDelay = 1000;
+  function open() {
+    const ws = new WebSocket("wss://api.caption.ninja:443");
+    ws.onopen = () => { ws.send(JSON.stringify({ join: ROOM_IDS[key] })); retryDelay = 1000; };
+    ws.onmessage = (evt) => {
+      let data;
+      try { data = JSON.parse(evt.data); } catch { return; }
+      if (data.c) { if (liveKey === key) clearLive(); return; }
+      if (data.final) { rs.finalQueue.push(data.final); drainFinalQueue(key); return; }
+      if (data.interm) {
+        if (rs.processingFinal) return;
+        if (data.interm === rs.lastFinalText) return;
+        setLiveOrig(key, data.interm);
+      }
+    };
+    ws.onclose = () => { setTimeout(open, retryDelay); retryDelay = Math.min(retryDelay * 2, 30000); };
+    ws.onerror = () => ws.close();
+  }
+  open();
+}
+
+setInterval(() => {
+  const text = liveOrig;
+  if (!text || !liveKey) return;
+  if (Date.now() - lastTranslateAt < 1500) return;
+  const key = liveKey, cfg = XL_CFG[key];
+  const myGen = ++intervalGen;
+  const snapLiveStartedAt = liveStartedAt;
+  lastTranslateAt = Date.now();
+  translateText(text, cfg.fromlang, cfg.tolang).then(xlate => {
+    if (intervalGen !== myGen || liveKey !== key) return;
+    liveXlate = xlate;
+    publishLive();
+    if (xlate && snapLiveStartedAt && (Date.now() - snapLiveStartedAt) >= 3000) {
+      publishPair(key, text, xlate);
+      clearLive();
+    }
+  });
+}, 500);
+
+connectXl();
+Object.keys(XL_CFG).forEach(listenRoom);
+renderXl();
 </script>
 </body>
 </html>

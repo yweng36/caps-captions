@@ -72,14 +72,16 @@
 <div id="status">connecting…</div>
 
 <script>
-const GOOGLE_KEY = "AIzaSyBcNjS1FeOoCg02fKnFk_aIARfUSd8JBh0";
+/* Display only. Translation happens ONCE on the operator's capture.html,
+   which broadcasts results to XL_ROOM. This page never calls Google, so
+   cost no longer scales with the number of viewers.
+   ?test=1 joins the rehearsal room instead of the live one. */
+const TEST    = new URLSearchParams(location.search).has("test");
+const XL_ROOM = "caps-agm-xl-a3fbajr1zk" + (TEST ? "-test" : "");
 
-/* ── Room definitions — both always connected ─────────── */
 const ROOMS = {
-  en: { roomId: "caps-agm-en-miyl2rw8q3", fromlang: "en", tolang: "fr",
-        origTag: "EN", origCls: "en", xlateTag: "FR", xlateCls: "fr" },
-  fr: { roomId: "caps-agm-fr-3zuxvho7nu", fromlang: "fr", tolang: "en",
-        origTag: "FR", origCls: "fr", xlateTag: "EN", xlateCls: "en" },
+  en: { origTag: "EN", origCls: "en", xlateTag: "FR", xlateCls: "fr" },
+  fr: { origTag: "FR", origCls: "fr", xlateTag: "EN", xlateCls: "en" },
 };
 
 /* ── DOM refs ─────────────────────────────────────────── */
@@ -134,29 +136,11 @@ liveBtnEl.addEventListener("click", () => {
   liveBtnEl.style.display = "none"; scrollToBottom();
 });
 
-/* ── Google Translate ─────────────────────────────────── */
-async function translateText(text, from, to) {
-  if (!text.trim()) return "";
-  try {
-    const res  = await fetch(
-      `https://translation.googleapis.com/language/translate/v2`
-      + `?key=${GOOGLE_KEY}&q=${encodeURIComponent(text)}`
-      + `&source=${from}&target=${to}&format=text`
-    );
-    const data = await res.json();
-    return data?.data?.translations?.[0]?.translatedText || text;
-  } catch { return text; }
-}
-
 /* ── Dedup helper ─────────────────────────────────────── */
 function norm(t) { return t.trim().toLowerCase().replace(/[.!?,;:…]+$/, "").trim(); }
 
 /* ── Live area ────────────────────────────────────────── */
-let liveRoomKey     = null;
-let liveGen         = 0;
-let translateTimer  = null;
-let lastTranslateAt = 0;
-let liveStartedAt   = 0;   // when current live segment began
+let liveRoomKey = null;
 
 function setLiveRoom(key) {
   const cfg = ROOMS[key];
@@ -165,35 +149,14 @@ function setLiveRoom(key) {
   liveRoomKey = key;
 }
 
-function setLiveOrig(text, cfg) {
-  if (!loText.textContent && text) liveStartedAt = Date.now();
-  loText.textContent = text;
-  loTag.classList.toggle("on", !!text);
+function setLive(orig, xlate) {
+  loText.textContent = orig;  loTag.classList.toggle("on", !!orig);
+  lxText.textContent = xlate; lxTag.classList.toggle("on", !!xlate);
   onNewContent();
-
-  clearTimeout(translateTimer);
-  const myGen = ++liveGen;
-  if (!text.trim()) { clearLiveXlate(); return; }
-
-  translateTimer = setTimeout(async () => {
-    if (liveGen !== myGen) return;
-    lastTranslateAt = Date.now();
-    const xlate = await translateText(text, cfg.fromlang, cfg.tolang);
-    if (liveGen !== myGen) return;
-    lxText.textContent = xlate;
-    lxTag.classList.toggle("on", !!xlate);
-    onNewContent();
-  }, 450);
 }
 
 function clearLive() {
-  liveGen++; clearTimeout(translateTimer);
   loText.textContent = ""; loTag.classList.remove("on");
-  lxText.textContent = ""; lxTag.classList.remove("on");
-  liveStartedAt = 0;
-}
-
-function clearLiveXlate() {
   lxText.textContent = ""; lxTag.classList.remove("on");
 }
 
@@ -226,111 +189,50 @@ function addPair(origText, xlateText, cfg) {
   onNewContent();
 }
 
-/* ── Per-room state + final queue ────────────────────── */
-const roomState = {};
-for (const key of Object.keys(ROOMS)) {
-  roomState[key] = { finalQueue: [], processingFinal: false, lastFinalText: "" };
-}
-
-async function drainFinalQueue(key) {
-  const rs  = roomState[key];
-  const cfg = ROOMS[key];
-  if (rs.processingFinal) return;
-  rs.processingFinal = true;
-  while (rs.finalQueue.length > 0) {
-    const text = rs.finalQueue.shift();
-    if (norm(text) === norm(rs.lastFinalText)) continue;
-    rs.lastFinalText = text;
-    if (liveRoomKey === key) clearLive();
-    const xlate = await translateText(text, cfg.fromlang, cfg.tolang);
-    addPair(text, xlate, cfg);
+/* ── Apply one broadcast message from the operator ────── */
+function handleXl(m) {
+  const cfg = ROOMS[m.k];
+  if (!cfg) return;
+  if (m.t === "live") {
+    if (liveRoomKey !== m.k) setLiveRoom(m.k);
+    setLive(m.o || "", m.x || "");
+  } else if (m.t === "pair") {
+    addPair(m.o || "", m.x || "", cfg);
+    if (liveRoomKey === m.k) clearLive();
+  } else if (m.t === "clear") {
+    if (liveRoomKey === m.k) clearLive();
   }
-  rs.processingFinal = false;
 }
 
-/* ── WebSocket per room ───────────────────────────────── */
-let connectedCount = 0;
+/* ── WebSocket ────────────────────────────────────────── */
+let retryDelay = 1000;
 
-function connectRoom(key) {
-  const cfg = ROOMS[key];
-  const rs  = roomState[key];
-  let retryDelay = 1000;
+function connect() {
+  const ws = new WebSocket("wss://api.caption.ninja:443");
 
-  function open() {
-    const ws = new WebSocket("wss://api.caption.ninja:443");
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ join: XL_ROOM }));
+    statusEl.textContent = TEST ? "● live (test)" : "● live";
+    statusEl.style.color = "#4caf50";
+    retryDelay = 1000;
+  };
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ join: cfg.roomId }));
-      connectedCount++;
-      statusEl.textContent = "● live";
-      statusEl.style.color = "#4caf50";
-      retryDelay = 1000;
-    };
+  ws.onmessage = (evt) => {
+    let data;
+    try { data = JSON.parse(evt.data); } catch { return; }
+    if (data && data.xl) handleXl(data.xl);
+  };
 
-    ws.onmessage = (evt) => {
-      let data;
-      try { data = JSON.parse(evt.data); } catch { return; }
-
-      if (data.c) { if (liveRoomKey === key) clearLive(); return; }
-
-      if (data.final) {
-        rs.finalQueue.push(data.final);
-        drainFinalQueue(key);
-        return;
-      }
-
-      if (data.interm) {
-        if (rs.processingFinal) return;
-        if (data.interm === rs.lastFinalText) return;
-        // Switch live area to this room if it just became active
-        if (liveRoomKey !== key) setLiveRoom(key);
-        setLiveOrig(data.interm, cfg);
-      }
-    };
-
-    ws.onclose = () => {
-      connectedCount = Math.max(0, connectedCount - 1);
-      if (connectedCount === 0) {
-        statusEl.textContent = "reconnecting…";
-        statusEl.style.color = "#bbb";
-      }
-      setTimeout(open, retryDelay);
-      retryDelay = Math.min(retryDelay * 2, 30000);
-    };
-    ws.onerror = () => ws.close();
-  }
-
-  open();
+  ws.onclose = () => {
+    statusEl.textContent = "reconnecting…";
+    statusEl.style.color = "#bbb";
+    setTimeout(connect, retryDelay);
+    retryDelay = Math.min(retryDelay * 2, 30000);
+  };
+  ws.onerror = () => ws.close();
 }
 
-Object.keys(ROOMS).forEach(connectRoom);
-
-
-// Every 500ms: if live text hasn't been translated in 1.5s, translate it.
-// If the live segment has been running for 3s+, also commit it as a
-// history pair so the audience sees a translation without waiting for
-// a long speaker pause. Uses own gen counter, independent of liveGen.
-let intervalGen = 0;
-setInterval(() => {
-  const text = loText.textContent;
-  if (!text || !liveRoomKey) return;
-  if (Date.now() - lastTranslateAt < 1500) return;
-  const cfg    = ROOMS[liveRoomKey];
-  const myGen  = ++intervalGen;
-  const snapLiveStartedAt = liveStartedAt;
-  lastTranslateAt = Date.now();
-  translateText(text, cfg.fromlang, cfg.tolang).then(xlate => {
-    if (intervalGen !== myGen) return;
-    lxText.textContent = xlate;
-    lxTag.classList.toggle("on", !!xlate);
-    onNewContent();
-    // Soft-final: speaker talking >3s without pause → commit to history
-    if (xlate && snapLiveStartedAt && (Date.now() - snapLiveStartedAt) >= 3000) {
-      addPair(text, xlate, cfg);
-      clearLive();
-    }
-  });
-}, 500);
+connect();
 </script>
 </body>
 </html>
