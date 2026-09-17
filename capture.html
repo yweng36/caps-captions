@@ -351,7 +351,9 @@ let apiKey = storeGet(XL_KEY_STORE) || "";
 let lastApiError = "";
 
 document.getElementById("xl-save").addEventListener("click", () => {
-  apiKey = xlKeyEl.value.trim();
+  const entered = xlKeyEl.value.trim();
+  if (!entered) { renderXl(); return; }   // empty box: keep the saved key
+  apiKey = entered;
   storeSet(XL_KEY_STORE, apiKey);
   xlKeyEl.value = "";
   lastApiError = "";
@@ -385,11 +387,11 @@ function renderXl() {
     ` (≈ US$${(usage.chars / 1e6 * 20).toFixed(2)})`;
   let msg, cls;
   if (TEST)                  { msg = "Translation: TEST mode (fake, free)"; cls = "warn"; }
-  else if (!apiKey)          { msg = "Translation: no key, viewers see originals only"; cls = "bad"; }
+  else if (!apiKey)          { msg = "Translation: no key saved in this window. Paste the key above and click Save key"; cls = "bad"; }
   else if (capReached())     { msg = "Translation: daily cap reached, paused"; cls = "bad"; }
   else if (lastApiError)     { msg = "Translation error: " + lastApiError; cls = "bad"; }
   else if (frac >= WARN_AT)  { msg = "Translation: on (near daily cap)"; cls = "warn"; }
-  else                       { msg = "Translation: on"; cls = "ok"; }
+  else                       { msg = "Translation: on (key saved)"; cls = "ok"; }
   xlStatusEl.textContent = msg;
   xlStatusEl.className = cls;
 }
